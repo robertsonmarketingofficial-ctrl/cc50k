@@ -3,7 +3,7 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-INCLUDE = ["README.md", "coldflow.example.toml", "coldflow", "campaigns", "templates", "playbook", "scripts", "tests"]
+INCLUDE = ["README.md", "coldflow.example.toml", "coldflow", "campaigns", "templates", "playbook", "scripts", "tests", "extras"]
 SKIP = {"__pycache__", ".pyc"}
 
 out = ROOT / "dist" / "cc50k-email-system.zip"

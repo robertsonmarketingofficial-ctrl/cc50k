@@ -1,0 +1,576 @@
+<title>Robertson Vault</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Fraunces:opsz,wght@9..144,500;9..144,650&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+:root{
+  color-scheme:dark;
+  --bg:#0F1115; --panel:#161920; --panel2:#1D212A; --line:#2A2F3A; --ink:#E7E4DB; --muted:#9095A1; --faint:#5E6370;
+  --center:#F2E8CF; --email:#5CC8B0; --info:#9FA8FF; --calls:#F2B45A; --sales:#E7798C; --school:#B7D46A; --danger:#F07A6A;
+  --display:"Fraunces", Georgia, "Times New Roman", serif;
+  --body:"Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 var(--body);overflow:hidden}
+.app{height:100%;display:grid;grid-template-rows:minmax(0,1fr) auto}
+.stage{position:relative;min-height:0}
+#graph{display:block;width:100%;height:100%;cursor:grab;touch-action:none}
+#graph.dragging{cursor:grabbing}
+.brand{position:absolute;top:14px;left:16px;display:grid;gap:2px;pointer-events:none}
+.brand h1{margin:0;font:650 22px/1.1 var(--display);letter-spacing:.005em}
+.brand p{margin:0;color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums}
+.legend{position:absolute;left:16px;bottom:14px;display:flex;flex-wrap:wrap;gap:6px 14px;max-width:calc(100% - 32px);font-size:12.5px;color:var(--muted)}
+.legend button{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:6px;padding:2px 0}
+.legend button:hover{color:var(--ink)}
+.legend button:focus-visible{outline:2px solid var(--info);outline-offset:3px;border-radius:3px}
+.legend i{width:9px;height:9px;border-radius:50%;display:inline-block}
+.tools{position:absolute;top:14px;right:16px;display:flex;gap:6px}
+.tools button,.btn{font:600 13px var(--body);color:var(--ink);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 11px;cursor:pointer}
+.tools button:hover,.btn:hover{border-color:#3C4250}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--info);outline-offset:2px}
+.status{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;color:var(--muted);text-align:center;padding-inline:24px}
+.status b{display:block;color:var(--ink);font:600 18px var(--display);margin-bottom:4px}
+
+.panel{position:absolute;top:58px;right:16px;bottom:16px;width:min(390px,calc(100% - 32px));background:var(--panel);border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column;box-shadow:0 18px 50px rgba(0,0,0,.45)}
+.panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px 0}
+.eyebrow{font-size:11.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:7px}
+.eyebrow i{width:9px;height:9px;border-radius:50%}
+.x{all:unset;cursor:pointer;color:var(--muted);font-size:20px;line-height:1;padding:2px 6px;border-radius:6px}
+.x:hover{color:var(--ink)}
+.panel-body{padding:8px 16px 16px;overflow:auto;display:grid;gap:14px;align-content:start;flex:1}
+#nodeTitle{width:100%;box-sizing:border-box;background:transparent;border:1px solid transparent;border-radius:8px;color:var(--ink);font:650 25px/1.2 var(--display);padding:4px 6px;margin-left:-6px}
+#nodeTitle:hover{border-color:var(--line)}
+.crumb{font-size:13px;color:var(--muted);margin-top:-8px}
+.crumb button{all:unset;cursor:pointer;color:var(--ink);text-decoration:underline;text-decoration-color:var(--faint);text-underline-offset:3px}
+label.lbl{display:block;font-size:11.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);margin-bottom:5px}
+#nodeBody{width:100%;box-sizing:border-box;min-height:190px;resize:vertical;background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--ink);font:14.5px/1.55 var(--body);padding:10px 12px}
+.row{display:flex;gap:8px;align-items:center}
+.row input{flex:1;min-width:0;background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--ink);font:14px var(--body);padding:7px 10px}
+.open-link{font-size:13.5px;color:var(--info);white-space:nowrap}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{all:unset;cursor:pointer;font-size:13px;padding:4px 10px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);display:inline-flex;align-items:center;gap:6px}
+.chip:hover{border-color:#3C4250}
+.chip:focus-visible{outline:2px solid var(--info)}
+.chip i{width:7px;height:7px;border-radius:50%}
+.muted{color:var(--muted);font-size:13px;margin:0}
+.danger{color:var(--danger)}
+.confirm{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13.5px}
+.saved{font-size:12px;color:var(--faint);font-variant-numeric:tabular-nums}
+
+.term{border-top:1px solid var(--line);background:#0A0C10;font:13px/1.5 var(--mono);padding-inline:16px;padding-block:8px calc(10px + env(safe-area-inset-bottom,0px))}
+.log{max-height:7.6em;overflow:auto;color:var(--muted);white-space:pre-wrap;word-break:break-word}
+.log .ok{color:var(--email)}
+.log .err{color:var(--danger)}
+.log .you{color:var(--ink)}
+.prompt{display:flex;align-items:center;gap:8px;margin-top:4px}
+.prompt span{color:var(--calls);white-space:nowrap}
+#cmd{flex:1;min-width:0;background:transparent;border:0;color:var(--ink);font:13px var(--mono);padding:4px 0}
+#cmd:focus-visible{outline:none}
+@media (max-width:640px){
+  .panel{top:auto;left:12px;right:12px;bottom:12px;width:auto;height:62%}
+  .legend{display:none}
+  .brand h1{font-size:19px}
+}
+</style>
+
+<div class="app">
+  <div class="stage">
+    <canvas id="graph" aria-label="Graph of notes. Click a note to open it."></canvas>
+    <header class="brand"><h1>Robertson Vault</h1><p id="counts">Loading notes…</p></header>
+    <div class="tools">
+      <button type="button" id="newBtn">+ New note</button>
+      <button type="button" id="fitBtn">Fit</button>
+    </div>
+    <div class="legend" id="legend"></div>
+    <div class="status" id="status"><div><b>Opening your vault</b>Your notes load from the vault's storage.</div></div>
+    <aside class="panel" id="panel" hidden aria-label="Note">
+      <div class="panel-head">
+        <span class="eyebrow" id="branchName"><i></i><span></span></span>
+        <button type="button" class="x" id="closePanel" aria-label="Close note">×</button>
+      </div>
+      <div class="panel-body">
+        <input id="nodeTitle" aria-label="Note name" autocomplete="off">
+        <div class="crumb" id="crumb"></div>
+        <div>
+          <label class="lbl" for="nodeBody">Notes</label>
+          <textarea id="nodeBody" placeholder="Write anything here, or tell Claude in chat what to put in this note."></textarea>
+          <div class="saved" id="saved"></div>
+        </div>
+        <div>
+          <label class="lbl" for="nodeUrl">Link</label>
+          <div class="row"><input id="nodeUrl" placeholder="https://…" autocomplete="off"><a id="openUrl" class="open-link" target="_blank" rel="noopener" hidden>Open ↗</a></div>
+        </div>
+        <div>
+          <span class="lbl">Connected notes</span>
+          <div class="chips" id="chips"></div>
+        </div>
+        <div class="row">
+          <button type="button" class="btn" id="addChild">+ Add note here</button>
+        </div>
+        <div>
+          <label class="lbl" for="connectTo">Connect to another note</label>
+          <div class="row"><input id="connectTo" list="titles" placeholder="Type a note name" autocomplete="off"><button type="button" class="btn" id="connectBtn">Connect</button></div>
+          <datalist id="titles"></datalist>
+        </div>
+        <div id="deleteZone">
+          <button type="button" class="btn danger" id="deleteBtn">Delete note</button>
+        </div>
+        <p class="muted">To fill this note in, tell Claude in chat, for example: “In <span id="exTitle">this note</span>, add …”</p>
+      </div>
+    </aside>
+  </div>
+  <section class="term" aria-label="Command line">
+    <div class="log" id="log" aria-live="polite"></div>
+    <div class="prompt"><span>vault ›</span><input id="cmd" autocomplete="off" spellcheck="false" aria-label="Command" placeholder="type help, or: add Idea name > Parent note"></div>
+  </section>
+</div>
+
+<script>
+(() => {
+const $ = id => document.getElementById(id);
+const canvas = $('graph'), g = canvas.getContext('2d');
+const css = getComputedStyle(document.documentElement);
+const tok = n => css.getPropertyValue(n).trim();
+const PALETTE = { center: tok('--center'), email: tok('--email'), info: tok('--info'), calls: tok('--calls'), sales: tok('--sales'), school: tok('--school') };
+const EXTRA = ['#7FC6E8', '#D69BE8', '#E8C07F', '#8FD9A0', '#E89B7F'];
+
+/* ---------- State ---------- */
+let db = null;
+const data = new Map();         // id -> doc body (+id)
+const sim = new Map();          // id -> {x,y,vx,vy}
+let nodes = [], edges = [], nbr = new Map(), deg = new Map();
+let selected = null, hovered = null;
+let cam = { x: 0, y: 0, k: 1 }, alpha = 1, fitted = false;
+
+/* ---------- Terminal ---------- */
+const logEl = $('log');
+function log(text, cls = '') {
+  const d = document.createElement('div'); if (cls) d.className = cls; d.textContent = text;
+  logEl.appendChild(d); while (logEl.children.length > 60) logEl.firstChild.remove();
+  logEl.scrollTop = logEl.scrollHeight;
+}
+log('Robertson Vault. Type help to see commands. Click any dot to open it.');
+
+/* ---------- Graph model ---------- */
+const titleOf = id => (data.get(id)?.title || 'Untitled');
+function branchOf(id) {
+  let cur = id, guard = 0;
+  while (guard++ < 50) { const p = data.get(cur)?.parent; if (!p || !data.has(p)) return null; if (!data.get(p).parent || !data.has(data.get(p).parent)) return cur; cur = p; }
+  return null;
+}
+function colorOf(id) {
+  const b = branchOf(id);
+  if (!b) return PALETTE.center;
+  const c = data.get(b)?.color;
+  if (c && PALETTE[c]) return PALETTE[c];
+  if (c && /^#[0-9a-f]{6}$/i.test(c)) return c;
+  const sibs = [...data.values()].filter(d => d.parent === data.get(b).parent).sort((a, z) => (a.created || 0) - (z.created || 0));
+  return EXTRA[Math.max(0, sibs.findIndex(d => d.id === b)) % EXTRA.length];
+}
+function rebuild() {
+  // keep simulation positions; place new notes beside their parent
+  for (const id of data.keys()) if (!sim.has(id)) {
+    const p = data.get(id).parent, ps = p && sim.get(p);
+    const a = Math.random() * Math.PI * 2, r = ps ? 50 + Math.random() * 30 : Math.random() * 20;
+    sim.set(id, { x: (ps ? ps.x : 0) + Math.cos(a) * r, y: (ps ? ps.y : 0) + Math.sin(a) * r, vx: 0, vy: 0 });
+  }
+  for (const id of [...sim.keys()]) if (!data.has(id)) sim.delete(id);
+  nodes = [...data.keys()];
+  const seen = new Set(); edges = [];
+  const addE = (a, b, kind) => { if (!data.has(a) || !data.has(b) || a === b) return; const k = a < b ? a + '|' + b : b + '|' + a; if (seen.has(k)) return; seen.add(k); edges.push([a, b, kind]); };
+  for (const [id, d] of data) { if (d.parent) addE(id, d.parent, 'tree'); (d.links || []).forEach(l => addE(id, l, 'link')); }
+  nbr = new Map(nodes.map(id => [id, new Set()]));
+  edges.forEach(([a, b]) => { nbr.get(a).add(b); nbr.get(b).add(a); });
+  deg = new Map(nodes.map(id => [id, nbr.get(id).size]));
+  alpha = Math.max(alpha, .6);
+  $('counts').textContent = `${nodes.length} notes · ${edges.length} connections`;
+  renderLegend();
+  $('titles').replaceChildren(...nodes.map(id => { const o = document.createElement('option'); o.value = titleOf(id); return o; }));
+}
+const radius = id => { const d = data.get(id); const base = (!d.parent || !data.has(d.parent)) ? 16 : 4.5; return base + 2.1 * Math.sqrt(deg.get(id) || 0); };
+
+function renderLegend() {
+  const roots = nodes.filter(id => !data.get(id).parent || !data.has(data.get(id).parent));
+  const branches = nodes.filter(id => { const p = data.get(id).parent; return p && data.has(p) && roots.includes(p); })
+    .sort((a, z) => (data.get(a).created || 0) - (data.get(z).created || 0));
+  $('legend').replaceChildren(...branches.map(id => {
+    const b = document.createElement('button'); b.type = 'button';
+    b.innerHTML = `<i style="background:${colorOf(id)}"></i>`; b.append(titleOf(id));
+    b.addEventListener('click', () => select(id, true));
+    return b;
+  }));
+}
+
+/* ---------- Physics ---------- */
+function step() {
+  if (alpha < .012) alpha = .012;
+  const arr = nodes.map(id => [id, sim.get(id)]);
+  for (let i = 0; i < arr.length; i++) {
+    const a = arr[i][1];
+    for (let j = i + 1; j < arr.length; j++) {
+      const b = arr[j][1];
+      let dx = b.x - a.x, dy = b.y - a.y, d2 = dx * dx + dy * dy;
+      if (d2 > 360000) continue;
+      if (d2 < 1) { dx = Math.random() - .5; dy = Math.random() - .5; d2 = 1; }
+      const d = Math.sqrt(d2), f = 2400 * alpha / d2;
+      const fx = dx / d * f, fy = dy / d * f;
+      a.vx -= fx; a.vy -= fy; b.vx += fx; b.vy += fy;
+    }
+  }
+  for (const [ia, ib, kind] of edges) {
+    const a = sim.get(ia), b = sim.get(ib);
+    const dx = b.x - a.x, dy = b.y - a.y, d = Math.sqrt(dx * dx + dy * dy) || 1;
+    const rest = (kind === 'tree' ? 58 : 110) + (radius(ia) + radius(ib)) * 1.6;
+    const f = (d - rest) * (kind === 'tree' ? .035 : .012) * alpha;
+    const fx = dx / d * f, fy = dy / d * f;
+    a.vx += fx; a.vy += fy; b.vx -= fx; b.vy -= fy;
+  }
+  for (const [id, s] of arr) {
+    s.vx -= s.x * .006 * alpha; s.vy -= s.y * .006 * alpha;
+    if (drag && drag.id === id) { s.vx = s.vy = 0; continue; }
+    s.vx *= .82; s.vy *= .82; s.x += s.vx; s.y += s.vy;
+  }
+  alpha *= .994;
+}
+
+/* ---------- Camera + drawing ---------- */
+let W = 0, H = 0, dpr = 1;
+function resize() { const r = canvas.getBoundingClientRect(); dpr = window.devicePixelRatio || 1; W = r.width; H = r.height; canvas.width = W * dpr; canvas.height = H * dpr; }
+addEventListener('resize', resize);
+const toScreen = (x, y) => [(x - cam.x) * cam.k + W / 2, (y - cam.y) * cam.k + H / 2];
+const toWorld = (sx, sy) => [(sx - W / 2) / cam.k + cam.x, (sy - H / 2) / cam.k + cam.y];
+function fit(animate = true) {
+  if (!nodes.length) return;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const id of nodes) { const s = sim.get(id); x0 = Math.min(x0, s.x); y0 = Math.min(y0, s.y); x1 = Math.max(x1, s.x); y1 = Math.max(y1, s.y); }
+  const panelW = $('panel').hidden || W < 640 ? 0 : 400;
+  const k = Math.min(1.6, Math.max(.25, Math.min((W - panelW - 80) / (x1 - x0 + 60), (H - 120) / (y1 - y0 + 60))));
+  target = { x: (x0 + x1) / 2 + panelW / 2 / k, y: (y0 + y1) / 2, k };
+  if (!animate) cam = { ...target };
+}
+let target = null;
+function draw(t) {
+  if (target) { cam.x += (target.x - cam.x) * .12; cam.y += (target.y - cam.y) * .12; cam.k += (target.k - cam.k) * .12; if (Math.abs(target.k - cam.k) < .001 && Math.abs(target.x - cam.x) < .2) target = null; }
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, W, H);
+  const focus = hovered || selected;
+  const near = focus ? nbr.get(focus) || new Set() : null;
+  const lit = id => !focus || id === focus || near.has(id);
+  // edges
+  for (const [a, b, kind] of edges) {
+    const [ax, ay] = toScreen(sim.get(a).x, sim.get(a).y), [bx, by] = toScreen(sim.get(b).x, sim.get(b).y);
+    const on = focus && (a === focus || b === focus);
+    g.strokeStyle = on ? colorOf(a === focus ? b : a) : (focus ? 'rgba(140,146,160,.08)' : 'rgba(140,146,160,.28)');
+    g.lineWidth = on ? 1.6 : 1;
+    g.setLineDash(kind === 'link' ? [4, 4] : []);
+    g.beginPath(); g.moveTo(ax, ay); g.lineTo(bx, by); g.stroke();
+  }
+  g.setLineDash([]);
+  // nodes
+  for (const id of nodes) {
+    const s = sim.get(id), [x, y] = toScreen(s.x, s.y), r = radius(id) * Math.max(.55, Math.min(1.4, cam.k));
+    const c = colorOf(id);
+    g.globalAlpha = lit(id) ? 1 : .18;
+    if (id === focus || id === selected) {
+      g.fillStyle = c; g.globalAlpha = .18; g.beginPath(); g.arc(x, y, r + 9, 0, 7); g.fill(); g.globalAlpha = 1;
+    }
+    g.fillStyle = c; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+    if (data.get(id).url) { g.strokeStyle = '#0F1115'; g.lineWidth = 2; g.beginPath(); g.arc(x, y, r * .45, 0, 7); g.stroke(); }
+  }
+  // labels
+  g.textAlign = 'center'; g.textBaseline = 'top';
+  for (const id of nodes) {
+    const big = radius(id) > 9;
+    const show = id === focus || id === selected || (focus ? near.has(id) : (big || cam.k > .9));
+    if (!show) continue;
+    const s = sim.get(id), [x, y] = toScreen(s.x, s.y), r = radius(id) * Math.max(.55, Math.min(1.4, cam.k));
+    g.globalAlpha = lit(id) ? 1 : .25;
+    g.font = (big ? '600 13px ' : '12px ') + tok('--body');
+    g.fillStyle = id === focus || id === selected ? '#FFFFFF' : (big ? tok('--ink') : tok('--muted'));
+    g.fillText(titleOf(id), x, y + r + 5);
+  }
+  g.globalAlpha = 1;
+}
+function loop(t) { if (nodes.length) { step(); if (!fitted && alpha < .5) { fit(false); fitted = true; } draw(t); } requestAnimationFrame(loop); }
+
+/* ---------- Pointer: hover, drag, pan, zoom ---------- */
+let drag = null, pan = null, pointers = new Map(), pinch = null;
+function hit(sx, sy) {
+  let best = null, bd = Infinity;
+  for (const id of nodes) { const s = sim.get(id), [x, y] = toScreen(s.x, s.y), r = radius(id) * Math.max(.55, Math.min(1.4, cam.k)) + 6; const d = Math.hypot(x - sx, y - sy); if (d < r && d < bd) { bd = d; best = id; } }
+  return best;
+}
+const pos = e => { const r = canvas.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+canvas.addEventListener('pointerdown', e => {
+  canvas.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId, pos(e));
+  if (pointers.size === 2) { const [a, b] = [...pointers.values()]; pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), k: cam.k }; drag = pan = null; return; }
+  const [sx, sy] = pos(e), id = hit(sx, sy);
+  target = null;
+  if (id) drag = { id, sx, sy, moved: false }; else pan = { sx, sy, cx: cam.x, cy: cam.y, moved: false };
+  canvas.classList.add('dragging');
+});
+canvas.addEventListener('pointermove', e => {
+  const [sx, sy] = pos(e);
+  if (pointers.has(e.pointerId)) pointers.set(e.pointerId, [sx, sy]);
+  if (pinch && pointers.size === 2) { const [a, b] = [...pointers.values()]; cam.k = Math.max(.2, Math.min(3, pinch.k * Math.hypot(a[0] - b[0], a[1] - b[1]) / pinch.d)); return; }
+  if (drag) {
+    if (Math.hypot(sx - drag.sx, sy - drag.sy) > 4) drag.moved = true;
+    if (drag.moved) { const [wx, wy] = toWorld(sx, sy), s = sim.get(drag.id); if (s) { s.x = wx; s.y = wy; } alpha = Math.max(alpha, .35); }
+  } else if (pan) {
+    if (Math.hypot(sx - pan.sx, sy - pan.sy) > 4) pan.moved = true;
+    cam.x = pan.cx - (sx - pan.sx) / cam.k; cam.y = pan.cy - (sy - pan.sy) / cam.k;
+  } else {
+    const h = hit(sx, sy); if (h !== hovered) { hovered = h; canvas.style.cursor = h ? 'pointer' : 'grab'; }
+  }
+});
+function endPointer(e) {
+  pointers.delete(e.pointerId);
+  if (pointers.size < 2) pinch = null;
+  canvas.classList.remove('dragging');
+  if (drag && !drag.moved) select(drag.id);
+  if (pan && !pan.moved) closePanel();
+  drag = pan = null;
+}
+canvas.addEventListener('pointerup', endPointer);
+canvas.addEventListener('pointercancel', endPointer);
+canvas.addEventListener('pointerleave', () => { if (!drag && !pan) hovered = null; });
+canvas.addEventListener('wheel', e => {
+  e.preventDefault(); target = null;
+  const [sx, sy] = pos(e), [wx, wy] = toWorld(sx, sy);
+  cam.k = Math.max(.2, Math.min(3, cam.k * Math.exp(-e.deltaY * .0015)));
+  const [nx, ny] = toWorld(sx, sy); cam.x += wx - nx; cam.y += wy - ny;
+}, { passive: false });
+
+/* ---------- Writes (one at a time per note) ---------- */
+const queue = new Map();
+function write(id, fn) {
+  const prev = queue.get(id) || Promise.resolve();
+  const next = prev.then(fn).catch(err => { log(`Couldn't save "${titleOf(id)}": ${err?.message || err?.code || err}`, 'err'); });
+  queue.set(id, next); return next;
+}
+const ref = id => db.collection('nodes').doc(id);
+function slug(s) { return (s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'note') + '-' + Math.random().toString(36).slice(2, 6); }
+async function createNote(title, parent) {
+  if (!db) { log('Notes can only be saved when this page is open in Claude.', 'err'); return null; }
+  const id = slug(title);
+  const body = { title, parent: parent || null, body: '', url: '', links: [], created: Date.now() };
+  data.set(id, { id, ...body }); rebuild();
+  await write(id, () => ref(id).set(body));
+  return id;
+}
+async function setField(id, patch) { if (!db) return; const d = data.get(id); if (!d) return; Object.assign(d, patch); rebuild(); await write(id, () => ref(id).update(patch)); }
+async function connect(a, b) {
+  if (a === b) return false;
+  const da = data.get(a), db2 = data.get(b);
+  if ((da.links || []).includes(b) || (db2.links || []).includes(a) || da.parent === b || db2.parent === a) return false;
+  await setField(a, { links: [...(da.links || []), b] }); return true;
+}
+async function disconnect(a, b) {
+  const da = data.get(a), db2 = data.get(b); let did = false;
+  if ((da.links || []).includes(b)) { await setField(a, { links: da.links.filter(x => x !== b) }); did = true; }
+  if ((db2.links || []).includes(a)) { await setField(b, { links: db2.links.filter(x => x !== a) }); did = true; }
+  return did;
+}
+async function removeNote(id) {
+  const d = data.get(id); if (!d) return;
+  for (const [cid, c] of [...data]) {
+    if (c.parent === id) await setField(cid, { parent: d.parent || null });
+    if ((c.links || []).includes(id)) await setField(cid, { links: c.links.filter(x => x !== id) });
+  }
+  data.delete(id); if (selected === id) closePanel(); rebuild();
+  await write(id, () => ref(id).delete());
+}
+
+/* ---------- Panel ---------- */
+const panel = $('panel');
+function select(id, center = false) {
+  if (!data.has(id)) return;
+  selected = id; panel.hidden = false; fillPanel(true);
+  if (center) { const s = sim.get(id); target = { x: s.x + (W >= 640 ? 200 / cam.k : 0), y: s.y + (W < 640 ? H * .25 / cam.k : 0), k: Math.max(cam.k, .9) }; }
+}
+function closePanel() { selected = null; panel.hidden = true; resetDelete(); }
+$('closePanel').addEventListener('click', closePanel);
+function fillPanel(force = false) {
+  if (!selected || !data.has(selected)) return;
+  const d = data.get(selected), active = document.activeElement;
+  const b = branchOf(selected);
+  const be = $('branchName'); be.querySelector('i').style.background = colorOf(selected);
+  be.querySelector('span').textContent = b ? titleOf(b) : 'Center';
+  if (force || active !== $('nodeTitle')) $('nodeTitle').value = d.title || '';
+  if (force || active !== $('nodeBody')) $('nodeBody').value = d.body || '';
+  if (force || active !== $('nodeUrl')) $('nodeUrl').value = d.url || '';
+  const a = $('openUrl'); a.hidden = !/^https?:\/\//.test(d.url || ''); if (!a.hidden) a.href = d.url;
+  $('exTitle').textContent = `“${d.title || 'this note'}”`;
+  const crumb = $('crumb'); crumb.replaceChildren();
+  if (d.parent && data.has(d.parent)) {
+    crumb.append('Part of ');
+    const pb = document.createElement('button'); pb.type = 'button'; pb.textContent = titleOf(d.parent); pb.addEventListener('click', () => select(d.parent, true)); crumb.append(pb);
+  } else crumb.textContent = 'Center of the vault';
+  const ids = [...(nbr.get(selected) || [])].filter(x => x !== d.parent);
+  $('chips').replaceChildren(...(ids.length ? ids.sort((x, y) => titleOf(x).localeCompare(titleOf(y))).map(x => {
+    const c = document.createElement('button'); c.type = 'button'; c.className = 'chip';
+    c.innerHTML = `<i style="background:${colorOf(x)}"></i>`; c.append(titleOf(x));
+    c.addEventListener('click', () => select(x, true)); return c;
+  }) : [Object.assign(document.createElement('span'), { className: 'muted', textContent: 'Nothing yet. Add a note here or connect one.' })]));
+}
+$('nodeTitle').addEventListener('keydown', e => { if (e.key === 'Enter') e.target.blur(); });
+$('nodeTitle').addEventListener('blur', async () => {
+  const v = $('nodeTitle').value.trim(); if (!selected) return;
+  if (!v) { $('nodeTitle').value = titleOf(selected); return; }
+  if (v !== titleOf(selected)) { await setField(selected, { title: v }); log(`Renamed to "${v}".`, 'ok'); }
+});
+let bodyTimer = null;
+const flushBody = async () => {
+  clearTimeout(bodyTimer); if (!selected) return;
+  const v = $('nodeBody').value; if (v === (data.get(selected)?.body || '')) return;
+  await setField(selected, { body: v }); $('saved').textContent = 'Saved ' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+};
+$('nodeBody').addEventListener('input', () => { $('saved').textContent = 'Saving…'; clearTimeout(bodyTimer); bodyTimer = setTimeout(flushBody, 800); });
+$('nodeBody').addEventListener('blur', flushBody);
+$('nodeUrl').addEventListener('change', async () => { if (!selected) return; await setField(selected, { url: $('nodeUrl').value.trim() }); fillPanel(); });
+$('addChild').addEventListener('click', async () => {
+  const id = await createNote('New note', selected); if (!id) return;
+  select(id, true); const t = $('nodeTitle'); t.focus(); t.select();
+  log(`Added a note under "${titleOf(data.get(id).parent)}". Type its name.`, 'ok');
+});
+$('connectBtn').addEventListener('click', async () => {
+  const other = find($('connectTo').value); if (!other) { log(`No note called "${$('connectTo').value}".`, 'err'); return; }
+  if (await connect(selected, other)) log(`Connected "${titleOf(selected)}" and "${titleOf(other)}".`, 'ok'); else log('Those notes are already connected.');
+  $('connectTo').value = ''; fillPanel();
+});
+function resetDelete() { $('deleteZone').replaceChildren(Object.assign(document.createElement('button'), { type: 'button', className: 'btn danger', id: 'deleteBtn', textContent: 'Delete note', onclick: askDelete })); }
+function askDelete() {
+  const z = $('deleteZone'), id = selected; z.replaceChildren();
+  const w = document.createElement('div'); w.className = 'confirm';
+  w.append(`Delete "${titleOf(id)}"? Its notes move up to its parent.`);
+  const y = Object.assign(document.createElement('button'), { type: 'button', className: 'btn danger', textContent: 'Delete' });
+  const n = Object.assign(document.createElement('button'), { type: 'button', className: 'btn', textContent: 'Keep it' });
+  y.onclick = async () => { const t = titleOf(id); await removeNote(id); log(`Deleted "${t}".`, 'ok'); resetDelete(); };
+  n.onclick = resetDelete; w.append(y, n); z.append(w);
+}
+$('deleteBtn').onclick = askDelete;
+$('newBtn').addEventListener('click', async () => {
+  const parent = selected || nodes.find(id => !data.get(id).parent) || null;
+  const id = await createNote('New note', parent); if (!id) return;
+  select(id, true); const t = $('nodeTitle'); t.focus(); t.select();
+});
+$('fitBtn').addEventListener('click', () => fit());
+addEventListener('keydown', e => {
+  if (e.key === 'Escape' && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') closePanel();
+  if (e.key === '/' && !/INPUT|TEXTAREA/.test(document.activeElement?.tagName)) { e.preventDefault(); $('cmd').focus(); }
+});
+
+/* ---------- Commands ---------- */
+function find(q) {
+  q = (q || '').trim().toLowerCase(); if (!q) return null;
+  const list = nodes.map(id => [id, titleOf(id).toLowerCase()]);
+  return (list.find(([, t]) => t === q) || list.find(([, t]) => t.startsWith(q)) || list.find(([, t]) => t.includes(q)) || [])[0] || null;
+}
+const HELP = [
+  'add NAME                 add a note under the open note (or the center)',
+  'add NAME > PARENT        add a note under PARENT',
+  'open NAME                open a note',
+  'rename NEW               rename the open note   ·   rename OLD > NEW',
+  'note TEXT                add a line to the open note',
+  'link A > B               draw a connection      ·   unlink A > B',
+  'move NAME > PARENT       move a note under another',
+  'url LINK                 attach a link to the open note',
+  'delete NAME              delete a note (asks first)',
+  'list                     list notes connected to the open note',
+  'fit · clear · help'
+];
+let pendingDelete = null;
+const hist = []; let hi = 0;
+async function run(line) {
+  const raw = line.trim(); if (!raw) return;
+  log('› ' + raw, 'you');
+  if (pendingDelete) {
+    const id = pendingDelete; pendingDelete = null;
+    if (/^y(es)?$/i.test(raw)) { const t = titleOf(id); await removeNote(id); log(`Deleted "${t}".`, 'ok'); } else log('Kept it.');
+    return;
+  }
+  const sp = raw.indexOf(' '), cmd = (sp < 0 ? raw : raw.slice(0, sp)).toLowerCase(), rest = sp < 0 ? '' : raw.slice(sp + 1).trim();
+  const [a, b] = rest.split(/\s+>\s+/);
+  const need = (q, what = 'note') => { const id = find(q); if (!id) log(`No ${what} matches "${q}". Try: open part-of-the-name`, 'err'); return id; };
+  if (!db && ['add', 'new', 'rename', 'note', 'link', 'unlink', 'move', 'url', 'delete'].includes(cmd)) { log('Saving needs this page open in Claude; I can only read right now.', 'err'); return; }
+  switch (cmd) {
+    case 'help': HELP.forEach(h => log(h)); break;
+    case 'clear': logEl.replaceChildren(); break;
+    case 'fit': fit(); break;
+    case 'add': case 'new': {
+      if (!a) { log('Give it a name: add Client ideas', 'err'); break; }
+      const parent = b ? need(b, 'parent note') : (selected || nodes.find(id => !data.get(id).parent));
+      if (b && !parent) break;
+      const id = await createNote(a, parent); if (id) { log(`Added "${a}" under "${titleOf(parent)}".`, 'ok'); select(id, true); }
+      break;
+    }
+    case 'open': { const id = need(rest); if (id) select(id, true); break; }
+    case 'rename': {
+      const id = b ? need(a) : selected; const name = b || a;
+      if (!id) { if (!b) log('Open a note first, or use: rename OLD > NEW', 'err'); break; }
+      if (!name) { log('Give the new name.', 'err'); break; }
+      const old = titleOf(id); await setField(id, { title: name }); fillPanel(true); log(`Renamed "${old}" to "${name}".`, 'ok'); break;
+    }
+    case 'note': {
+      if (!selected) { log('Open a note first.', 'err'); break; }
+      const body = (data.get(selected).body || ''); await setField(selected, { body: (body ? body.replace(/\s+$/, '') + '\n' : '') + rest });
+      fillPanel(true); log(`Added to "${titleOf(selected)}".`, 'ok'); break;
+    }
+    case 'link': case 'unlink': {
+      if (!a || !b) { log(`Use: ${cmd} Note A > Note B`, 'err'); break; }
+      const x = need(a), y = x && need(b); if (!x || !y) break;
+      const ok = cmd === 'link' ? await connect(x, y) : await disconnect(x, y);
+      log(ok ? `${cmd === 'link' ? 'Connected' : 'Disconnected'} "${titleOf(x)}" and "${titleOf(y)}".` : (cmd === 'link' ? 'Already connected.' : 'Those two have no extra connection (a parent link stays; use move).'), ok ? 'ok' : '');
+      fillPanel(); break;
+    }
+    case 'move': {
+      const x = need(a), y = x && b && need(b); if (!x || !y) { if (x && !b) log('Use: move NOTE > NEW PARENT', 'err'); break; }
+      let up = y, inside = false, guard = 0;
+      while (up && guard++ < 60) { if (up === x) { inside = true; break; } up = data.get(up)?.parent; }
+      if (inside) { log("A note can't move inside itself.", 'err'); break; }
+      await setField(x, { parent: y }); log(`Moved "${titleOf(x)}" under "${titleOf(y)}".`, 'ok'); fillPanel(); break;
+    }
+    case 'url': { if (!selected) { log('Open a note first.', 'err'); break; } await setField(selected, { url: rest }); fillPanel(true); log('Link saved.', 'ok'); break; }
+    case 'delete': case 'remove': { const id = need(rest); if (id) { pendingDelete = id; log(`Delete "${titleOf(id)}"? Type y to confirm, anything else to keep it.`); } break; }
+    case 'list': case 'ls': {
+      const id = selected || nodes.find(x => !data.get(x).parent); if (!id) break;
+      log(`${titleOf(id)}:`); [...nbr.get(id)].forEach(x => log('  · ' + titleOf(x))); break;
+    }
+    default: log(`Unknown command "${cmd}". Type help.`, 'err');
+  }
+}
+$('cmd').addEventListener('keydown', e => {
+  const el = e.target;
+  if (e.key === 'Enter') { const v = el.value; hist.push(v); hi = hist.length; el.value = ''; run(v); }
+  else if (e.key === 'ArrowUp') { if (hi > 0) { el.value = hist[--hi]; e.preventDefault(); } }
+  else if (e.key === 'ArrowDown') { if (hi < hist.length) { el.value = hist[++hi] || ''; e.preventDefault(); } }
+  else if (e.key === 'Tab') {
+    const v = el.value, cut = Math.max(v.lastIndexOf(' > ') >= 0 ? v.lastIndexOf(' > ') + 3 : -1, v.indexOf(' ') + 1);
+    if (cut <= 0) return;
+    const part = v.slice(cut).toLowerCase(); const m = nodes.map(titleOf).find(t => t.toLowerCase().startsWith(part));
+    if (m) { e.preventDefault(); el.value = v.slice(0, cut) + m; }
+  }
+});
+
+/* ---------- Boot ---------- */
+resize();
+requestAnimationFrame(loop);
+(async () => {
+  db = await (window.claude?.use ? window.claude.use('db') : Promise.resolve(null));
+  if (!db) {
+    $('status').innerHTML = '<div><b>Your vault lives in Claude</b>Open this page in Claude to see and edit your notes.</div>';
+    $('counts').textContent = 'Not connected'; return;
+  }
+  db.collection('nodes').onSnapshot(snap => {
+    data.clear();
+    snap.docs.forEach(d => data.set(d.id, { id: d.id, ...d.data() }));
+    $('status').hidden = data.size > 0;
+    if (!data.size) $('status').innerHTML = '<div><b>An empty vault</b>Type add My first note in the command line below.</div>';
+    rebuild();
+    if (selected && !data.has(selected)) closePanel(); else fillPanel();
+  }, err => { log(`Lost the connection to your notes (${err.code}). Reload the page.`, 'err'); });
+})();
+})();
+</script>

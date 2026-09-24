@@ -1,0 +1,1072 @@
+<title>Messines Mine Cutaway</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=IBM+Plex+Sans+Condensed:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  color-scheme:dark;
+  --bg:#101214; --panel:rgba(20,22,25,.92); --panel-solid:#16181B; --line:#2C3035; --ink:#E9E4D8; --muted:#A09A8C; --faint:#6B675E;
+  --brass:#C9A45C; --clay:#7F95A6; --flame:#E8763A;
+  --display:"IM Fell English", "Iowan Old Style", Georgia, serif;
+  --ui:"IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 var(--ui);overflow:hidden}
+#view{position:fixed;inset:0}
+#view canvas{display:block;width:100%;height:100%;touch-action:none}
+.hud{position:fixed;left:16px;top:calc(14px + env(safe-area-inset-top,0px));max-width:min(430px,calc(100% - 32px));pointer-events:none;display:grid;gap:8px}
+.titlecard{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.hud h1{margin:0;font:400 28px/1.05 var(--display);letter-spacing:.005em}
+.hud .sub{margin:4px 0 0;color:var(--muted);font-size:13.5px}
+.clock{pointer-events:none;display:flex;gap:16px;align-items:baseline;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 12px;width:max-content;max-width:100%;flex-wrap:wrap}
+.clock b{font:500 20px var(--mono);font-variant-numeric:tabular-nums;color:var(--brass)}
+.clock span{color:var(--ink)}
+.results{pointer-events:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:grid;gap:4px;font-size:13px}
+.results .row{display:flex;justify-content:space-between;gap:14px}
+.results .row b{font:500 13px var(--mono);font-variant-numeric:tabular-nums;color:var(--ink);white-space:nowrap}
+.results .row span{color:var(--muted)}
+.results .note{color:var(--muted);font-size:12.5px;margin-top:2px}
+.results details{margin-top:4px;color:var(--muted);font-size:12.5px}
+.results summary{cursor:pointer;color:var(--ink)}
+
+.panel{position:fixed;right:12px;top:calc(12px + env(safe-area-inset-top,0px));bottom:12px;width:300px;background:var(--panel);border:1px solid var(--line);border-radius:10px;display:flex;flex-direction:column;overflow:hidden}
+.panel header{display:flex;justify-content:space-between;align-items:center;padding:12px 14px 8px}
+.panel header h2{margin:0;font:600 12px var(--ui);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.panel .body{overflow:auto;padding:0 14px 14px;display:grid;gap:14px;align-content:start}
+.group{display:grid;gap:8px;padding-top:12px;border-top:1px solid var(--line)}
+.group h3{margin:0;font:600 11.5px var(--ui);letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
+.ctl{display:grid;gap:3px}
+.ctl .top{display:flex;justify-content:space-between;gap:8px}
+.ctl label{color:var(--ink)}
+.ctl output{font:500 12.5px var(--mono);color:var(--brass);font-variant-numeric:tabular-nums;white-space:nowrap}
+input[type=range]{width:100%;accent-color:var(--brass)}
+select{width:100%;background:var(--panel-solid);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:6px 8px;font:14px var(--ui)}
+.seg{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+.seg button,.cams button{font:600 12.5px var(--ui);color:var(--muted);background:var(--panel-solid);border:1px solid var(--line);border-radius:6px;padding:6px 4px;cursor:pointer}
+.seg button[aria-pressed="true"]{color:#15120B;background:var(--brass);border-color:var(--brass)}
+.cams{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
+.cams button:hover,.seg button:hover{color:var(--ink)}
+.checks{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px}
+.checks label{display:flex;gap:6px;align-items:center;cursor:pointer}
+.checks input{accent-color:var(--brass)}
+.go{display:grid;grid-template-columns:1.6fr 1fr;gap:8px}
+.go button{font:600 15px var(--ui);border-radius:8px;padding:10px;cursor:pointer;border:1px solid var(--line)}
+#fire{background:var(--flame);color:#1A0E06;border-color:var(--flame)}
+#fire:disabled{opacity:.5;cursor:default}
+#reset{background:var(--panel-solid);color:var(--ink)}
+button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+.hint{color:var(--faint);font-size:12.5px;margin:0}
+#toggle{display:none}
+.labels{position:fixed;inset:0;pointer-events:none;overflow:hidden}
+.lab{position:absolute;transform:translate(-50%,-100%);font:600 11.5px var(--ui);letter-spacing:.04em;color:#F3EEE2;background:rgba(14,15,17,.72);border:1px solid rgba(255,255,255,.12);padding:2px 6px;border-radius:4px;white-space:nowrap}
+.lab.u{border-color:rgba(127,149,166,.55)}
+.lab.hot{border-color:var(--flame);color:#FFD9C2}
+.lab::after{content:"";position:absolute;left:50%;top:100%;width:1px;height:8px;background:rgba(255,255,255,.35)}
+.loading{position:fixed;inset:0;display:grid;place-items:center;color:var(--muted);font:15px var(--ui);pointer-events:none}
+.loading[hidden]{display:none}
+@media (max-width:760px){
+  .panel{top:auto;left:8px;right:8px;width:auto;height:46%;bottom:8px}
+  .panel.closed{height:auto}
+  .panel.closed .body{display:none}
+  #toggle{display:inline-block;font:600 12px var(--ui);background:none;border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:4px 8px}
+  .hud h1{font-size:23px}
+  .results{display:none}
+}
+@media (prefers-reduced-motion: reduce){ .lab{transition:none} }
+</style>
+
+<div id="view" aria-label="3D cutaway model of a mine under Messines Ridge"></div>
+<div class="labels" id="labels"></div>
+<div class="loading" id="loading">Building the ridge…</div>
+
+<div class="hud">
+  <div class="titlecard">
+    <h1>Messines Mine Cutaway</h1>
+    <p class="sub" id="sub">Spanbroekmolen, Messines Ridge, Belgium · fired 03:10, 7 June 1917</p>
+  </div>
+  <div class="clock" aria-live="polite"><b id="tclock">t = 0.000 s</b><span id="stage">Ready. Press Detonate.</span></div>
+  <div class="results" id="results"></div>
+</div>
+
+<aside class="panel" id="panel" aria-label="Simulation controls">
+  <header><h2>Controls</h2><button type="button" id="toggle" aria-expanded="true">Hide</button></header>
+  <div class="body">
+    <div class="go"><button type="button" id="fire">Detonate</button><button type="button" id="reset">Reset</button></div>
+
+    <div class="group">
+      <h3>Mine</h3>
+      <div class="ctl"><label for="preset">Historical mine</label>
+        <select id="preset">
+          <option value="spanbroekmolen">Spanbroekmolen (41 t at 27 m)</option>
+          <option value="steloi">St Eloi (43 t at 38 m)</option>
+          <option value="custom">Custom</option>
+        </select></div>
+      <div class="ctl"><div class="top"><label for="charge">Charge (ammonal)</label><output id="chargeOut"></output></div><input type="range" id="charge" min="1" max="60" step="0.1"></div>
+      <div class="ctl"><div class="top"><label for="depth">Depth below surface</label><output id="depthOut"></output></div><input type="range" id="depth" min="8" max="70" step="0.5"></div>
+    </div>
+
+    <div class="group">
+      <h3>Simulation</h3>
+      <div class="ctl"><div class="top"><label for="speed">Speed</label><output id="speedOut"></output></div><input type="range" id="speed" min="-3" max="1" step="0.01"></div>
+      <div class="ctl"><span>Accuracy / detail</span>
+        <div class="seg" id="detail" role="group" aria-label="Accuracy and detail">
+          <button type="button" data-v="low">Low</button><button type="button" data-v="medium">Medium</button><button type="button" data-v="high">High</button><button type="button" data-v="ultra">Ultra</button>
+        </div></div>
+      <div class="checks">
+        <label><input type="checkbox" id="slowmo" checked> Slow-motion blast</label>
+        <label><input type="checkbox" id="shake" checked> Camera shake</label>
+        <label><input type="checkbox" id="dust" checked> Dust cloud</label>
+        <label><input type="checkbox" id="waves" checked> Shock waves</label>
+        <label><input type="checkbox" id="labelsOn" checked> Labels</label>
+        <label><input type="checkbox" id="sound" checked> Sound</label>
+        <label><input type="checkbox" id="glow" checked> Highlight tunnels</label>
+        <label><input type="checkbox" id="night"> 03:10 darkness</label>
+      </div>
+    </div>
+
+    <div class="group">
+      <h3>Camera</h3>
+      <div class="cams" id="cams">
+        <button type="button" data-cam="section">Cutaway</button>
+        <button type="button" data-cam="chamber">Charge</button>
+        <button type="button" data-cam="shaft">Shaft</button>
+        <button type="button" data-cam="trench">From trench</button>
+        <button type="button" data-cam="overview">Overview</button>
+        <button type="button" data-cam="aerial">Aerial</button>
+      </div>
+      <div class="ctl"><div class="top"><label for="camH">Camera height</label><output id="camHOut"></output></div><input type="range" id="camH" min="-40" max="600" step="1"></div>
+      <p class="hint">Drag to orbit, right-drag or two fingers to pan, scroll or pinch to zoom.</p>
+    </div>
+  </div>
+</aside>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+(() => {
+if (!window.THREE) { document.getElementById('loading').textContent = 'The 3D library could not load. Check your connection and reload.'; return; }
+const $ = id => document.getElementById(id);
+if (THREE.ColorManagement) THREE.ColorManagement.legacyMode = false;   // treat colours as sRGB, like the canvas textures
+
+/* ================= World layout (metres) ================= */
+const XMIN = -560, XMAX = 170, ZMIN = -220, ZMAX = 0, YBOT = -62, YTOP = 22;
+const XC = 8;                 // charge chamber, under the German front line
+const XGF = 0, XGS = 58;      // German front and support trenches
+const XBF = -92;              // British front trench
+const GALLERY = 520;          // gallery length (Spanbroekmolen: about 1,717 ft)
+const XS = XC - GALLERY;      // British shaft
+const G = 9.81;
+const PRESETS = {
+  spanbroekmolen: { name: 'Spanbroekmolen', t: 41.3, d: 27, crater: 76, note: 'The real crater survives as the Pool of Peace, about 76 m across.' },
+  steloi: { name: 'St Eloi', t: 43.4, d: 38, crater: null, note: 'The largest of the Messines mines.' }
+};
+const DETAIL = {
+  low:    { cell: 4,   ejecta: 1800,  fire: 300,  dust: 700,  sub: 1, shadows: false },
+  medium: { cell: 2.5, ejecta: 5000,  fire: 700,  dust: 1600,  sub: 2, shadows: false },
+  high:   { cell: 1.5, ejecta: 12000, fire: 1300, dust: 3000, sub: 2, shadows: true },
+  ultra:  { cell: 1,   ejecta: 26000, fire: 2400, dust: 5000, sub: 3, shadows: true }
+};
+const S = { preset: 'spanbroekmolen', charge: 41.3, depth: 27, speedLog: 0, detail: 'high',
+  slowmo: true, shake: true, dust: true, waves: true, labels: true, sound: true, glow: true, night: false };
+
+/* ================= Noise and terrain ================= */
+function hash(i, j) { let h = (i * 374761393 + j * 668265263) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967295; }
+function vnoise(x, z) { const i = Math.floor(x), j = Math.floor(z), fx = x - i, fz = z - j, a = hash(i, j), b = hash(i + 1, j), c = hash(i, j + 1), d = hash(i + 1, j + 1), ux = fx * fx * (3 - 2 * fx), uz = fz * fz * (3 - 2 * fz); return a + (b - a) * ux + (c - a) * uz + (a - b - c + d) * ux * uz; }
+function fbm(x, z, o = 4) { let s = 0, a = 1, f = 1; for (let k = 0; k < o; k++) { s += a * (vnoise(x * f + k * 17.3, z * f - k * 9.1) - .5); a *= .5; f *= 2.03; } return s; }
+const smooth = (e0, e1, x) => { const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0))); return t * t * (3 - 2 * t); };
+const ridge = x => -1 + 13 * smooth(-430, 70, x);                    // Messines Ridge rises toward the German line
+const clayTop = x => -6.5 + 1.2 * Math.sin(x * .011) + .6 * fbm(x / 30, 3, 2);   // top of the blue (Ieper) clay
+let seedRand = 1; const rnd = () => (seedRand = (seedRand * 16807) % 2147483647) / 2147483647;
+
+// trenches as polylines in (x,z)
+function trenchLine(x0, style) {
+  const pts = []; let z = 0, k = 0;
+  while (z > ZMIN - 5) {
+    if (style === 'german') { pts.push([x0, z], [x0, z - 7], [x0 + 3.2, z - 7], [x0 + 3.2, z - 10], [x0, z - 10]); z -= 10; }
+    else { pts.push([x0 + (k % 2 ? 2.4 : 0), z], [x0 + (k % 2 ? 2.4 : 0), z - 8], [x0 + (k % 2 ? 0 : 2.4), z - 9.5]); z -= 9.5; }
+    k++;
+  }
+  return pts;
+}
+function commTrench(xa, xb, z0) { const pts = []; let x = xa, k = 0; while (x < xb) { pts.push([x, z0 + (k % 2 ? 4 : -4)]); x += 7; k++; } pts.push([xb, z0]); return pts; }
+const TRENCHES = [
+  { pts: trenchLine(XGF, 'german'), depth: 2.3, half: 1.1, side: -1 },
+  { pts: trenchLine(XGS, 'german'), depth: 2.3, half: 1.1, side: -1 },
+  { pts: trenchLine(XBF, 'british'), depth: 2.0, half: 1.0, side: 1 },
+  { pts: commTrench(XGF + 3, XGS, -128), depth: 2.0, half: .9, side: 0 },
+  { pts: commTrench(XBF - 160, XBF, -150), depth: 1.8, half: .9, side: 0 }
+];
+function segDist(px, pz, ax, az, bx, bz) { const dx = bx - ax, dz = bz - az, l2 = dx * dx + dz * dz || 1; let t = ((px - ax) * dx + (pz - az) * dz) / l2; t = Math.max(0, Math.min(1, t)); const qx = ax + t * dx, qz = az + t * dz; return Math.hypot(px - qx, pz - qz); }
+function trenchCarve(x, z) {
+  let cut = 0;
+  for (const tr of TRENCHES) {
+    const p = tr.pts; let dmin = Infinity;
+    for (let i = 0; i < p.length - 1; i++) {
+      if (Math.abs(p[i][0] - x) > 12 && Math.abs(p[i + 1][0] - x) > 12) continue;
+      if (Math.min(p[i][1], p[i + 1][1]) - 3 > z || Math.max(p[i][1], p[i + 1][1]) + 3 < z) continue;
+      dmin = Math.min(dmin, segDist(x, z, p[i][0], p[i][1], p[i + 1][0], p[i + 1][1]));
+    }
+    if (dmin < tr.half * 1.9) cut = Math.max(cut, tr.depth * (1 - smooth(tr.half * .7, tr.half * 1.9, dmin)));
+  }
+  return cut;
+}
+// shell holes: dense in no man's land and around the lines
+const HOLES = [], HOLE_CELL = 20, holeGrid = new Map();
+function makeHoles() {
+  seedRand = 7;
+  for (let i = 0; i < 520; i++) {
+    const zone = rnd();
+    let x = zone < .55 ? XBF + (rnd() * 1.2 - .1) * (XGF - XBF) : zone < .85 ? XGF - 30 + rnd() * 120 : XBF - 140 + rnd() * 140;
+    const z = ZMIN + 4 + rnd() * (ZMAX - ZMIN - 4);
+    const r = 1.6 + Math.pow(rnd(), 2) * 5.5, d = r * (.28 + rnd() * .22);
+    HOLES.push([x, z, r, d]);
+  }
+  for (const h of HOLES) { const k = Math.floor(h[0] / HOLE_CELL) + ',' + Math.floor(h[1] / HOLE_CELL); if (!holeGrid.has(k)) holeGrid.set(k, []); holeGrid.get(k).push(h); }
+}
+makeHoles();
+function holesAt(x, z) {
+  let s = 0; const cx = Math.floor(x / HOLE_CELL), cz = Math.floor(z / HOLE_CELL);
+  for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
+    const list = holeGrid.get((cx + i) + ',' + (cz + j)); if (!list) continue;
+    for (const [hx, hz, r, d] of list) { const q = Math.hypot(x - hx, z - hz) / r; if (q < 1.35) s += q < 1 ? -d * (1 - q * q) + .18 * d * q ** 4 : .18 * d * Math.max(0, 1 - (q - 1) / .35); }
+  }
+  return s;
+}
+function surface0(x, z) { return ridge(x) + .9 * Math.sin(z * .018 + x * .006) + 1.3 * fbm(x / 45, z / 45) + .3 * fbm(x / 7, z / 7, 3) + holesAt(x, z) - trenchCarve(x, z); }
+
+/* ================= Three.js scene ================= */
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+$('view').appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(42, 1, .3, 6000);
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.dampingFactor = .08; controls.maxDistance = 1800; controls.minDistance = 3;
+controls.screenSpacePanning = true;
+
+// sky dome
+const skyGeo = new THREE.SphereGeometry(3000, 32, 16);
+const skyCol = new Float32Array(skyGeo.attributes.position.count * 3);
+skyGeo.setAttribute('color', new THREE.BufferAttribute(skyCol, 3));
+const sky = new THREE.Mesh(skyGeo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, depthWrite: false, fog: false }));
+scene.add(sky);
+function paintSky(night) {
+  const top = new THREE.Color(night ? '#060910' : '#6F8296'), mid = new THREE.Color(night ? '#141A26' : '#B9B7A8'), low = new THREE.Color(night ? '#2A2A2C' : '#CFC3A4');
+  const p = skyGeo.attributes.position, c = new THREE.Color();
+  for (let i = 0; i < p.count; i++) {
+    const y = p.getY(i) / 3000, x = p.getX(i) / 3000;
+    if (y > .15) c.copy(mid).lerp(top, Math.min(1, (y - .15) / .6)); else c.copy(low).lerp(mid, Math.max(0, (y + .1) / .25));
+    if (night && x > .3 && y < .25 && y > -.05) c.lerp(new THREE.Color('#3B3446'), (x - .3) * .5);
+    skyCol.set([c.r, c.g, c.b], i * 3);
+  }
+  skyGeo.attributes.color.needsUpdate = true;
+}
+const hemi = new THREE.HemisphereLight(0xC9D2DC, 0x3A2E22, .75); scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xFFF1D8, 1.05);
+sun.position.set(420, 260, 180); sun.target.position.set(-120, 0, -80); scene.add(sun, sun.target);
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -380, right: 380, top: 220, bottom: -220, near: 10, far: 1400 });
+sun.shadow.bias = -.0006;
+const blastLight = new THREE.PointLight(0xFF9A4A, 0, 380, 1.8); scene.add(blastLight);
+const chamberLight = new THREE.PointLight(0xFFE0A0, 0, 120, 2); scene.add(chamberLight);
+function applyLighting() {
+  const n = S.night;
+  paintSky(n);
+  scene.fog = new THREE.Fog(n ? 0x0A0D14 : 0xB9B5A6, n ? 260 : 700, n ? 1500 : 2600);
+  hemi.intensity = n ? .22 : .6; hemi.color.set(n ? 0x5A6A88 : 0xC9D2DC);
+  sun.intensity = n ? .16 : 1.05; sun.color.set(n ? 0x8C9CC8 : 0xFFF1D8);
+  renderer.toneMappingExposure = n ? 1.3 : 1;
+}
+
+/* ================= Terrain mesh ================= */
+let terrain, grid, faceFront, faceSides = [], baseH, curH, finalDisp, nx, nz, cell, terrainColors, baseColors;
+const crackCol = new THREE.Color('#9A8868'), mudA = new THREE.Color('#403225'), mudB = new THREE.Color('#2A2119'), mudC = new THREE.Color('#5C4B38'), grass = new THREE.Color('#46502F'), clayCol = new THREE.Color('#6A7176'), water = new THREE.Color('#252B2C');
+// fine detail texture: churned mud, clods and wheel-rutted grain, tiled every 6 m
+const mudDetail = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 512; const x = c.getContext('2d'), img = x.createImageData(512, 512), d = img.data;
+  for (let j = 0; j < 512; j++) for (let i = 0; i < 512; i++) {
+    const u = i / 512 * 8, v = j / 512 * 8;
+    let n = .55 * vnoise(u * 2, v * 2) + .3 * vnoise(u * 6.3, v * 6.3) + .15 * vnoise(u * 17, v * 17);
+    const clod = vnoise(u * 11 + 40, v * 11) > .78 ? .12 : 0;
+    const val = Math.round(255 * Math.min(1, .66 + n * .42 + clod)), o = (j * 512 + i) * 4;
+    d[o] = val; d[o + 1] = Math.round(val * .97); d[o + 2] = Math.round(val * .93); d[o + 3] = 255;
+  }
+  x.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.encoding = THREE.sRGBEncoding; return t;
+})();
+function buildTerrain() {
+  if (terrain) { scene.remove(terrain); terrain.geometry.dispose(); }
+  cell = DETAIL[S.detail].cell;
+  nx = Math.round((XMAX - XMIN) / cell); nz = Math.round((ZMAX - ZMIN) / cell);
+  const cnt = (nx + 1) * (nz + 1);
+  const pos = new Float32Array(cnt * 3), col = new Float32Array(cnt * 3), uvs = new Float32Array(cnt * 2);
+  baseH = new Float32Array(cnt); curH = new Float32Array(cnt); finalDisp = new Float32Array(cnt);
+  const c = new THREE.Color();
+  for (let j = 0; j <= nz; j++) for (let i = 0; i <= nx; i++) {
+    const k = j * (nx + 1) + i, x = XMIN + i * (XMAX - XMIN) / nx, z = ZMIN + j * (ZMAX - ZMIN) / nz;
+    const h = surface0(x, z); baseH[k] = curH[k] = h;
+    pos[k * 3] = x; pos[k * 3 + 1] = h; pos[k * 3 + 2] = z; uvs[k * 2] = x / 11; uvs[k * 2 + 1] = z / 11;
+    // colour: churned mud in the battle zone, a little grass far behind the lines
+    const churn = smooth(XBF - 190, XBF - 60, x) * (1 - smooth(XGS + 40, XGS + 100, x));
+    const n1 = fbm(x / 9, z / 9, 3) + .5, n2 = vnoise(x / 2.3, z / 2.3);
+    c.copy(mudA).lerp(mudC, Math.max(0, n1 - .35) * 1.2).lerp(mudB, n2 * .5);
+    c.lerp(grass, (1 - churn) * .55 * (.6 + n2 * .4));
+    const hole = holesAt(x, z), tc = trenchCarve(x, z);
+    if (hole < -.6) c.lerp(water, Math.min(.75, (-hole - .6) * .5));     // standing water in shell holes
+    if (tc > .4) c.lerp(mudB, .7);
+    col.set([c.r, c.g, c.b], k * 3);
+  }
+  const idx = new Uint32Array(nx * nz * 6); let t = 0;
+  for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) { const a = j * (nx + 1) + i, b = a + 1, d = a + nx + 1, e = d + 1; idx.set([a, d, b, b, d, e], t); t += 6; }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  g.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+  g.setIndex(new THREE.BufferAttribute(idx, 1));
+  g.computeVertexNormals();
+  baseColors = col.slice(); terrainColors = col;
+  terrain = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors: true, map: mudDetail, roughness: .93, metalness: 0 }));
+  terrain.receiveShadow = true; terrain.castShadow = DETAIL[S.detail].shadows;
+  scene.add(terrain);
+}
+function hAt(x, z) {
+  const fx = (x - XMIN) / (XMAX - XMIN) * nx, fz = (z - ZMIN) / (ZMAX - ZMIN) * nz;
+  if (fx < 0 || fz < 0 || fx > nx || fz > nz) return -Infinity;
+  const i = Math.min(nx - 1, Math.floor(fx)), j = Math.min(nz - 1, Math.floor(fz)), u = fx - i, v = fz - j, w = nx + 1;
+  const a = curH[j * w + i], b = curH[j * w + i + 1], c = curH[(j + 1) * w + i], d = curH[(j + 1) * w + i + 1];
+  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+}
+const frontH = x => hAt(x, ZMAX - .001);
+
+/* ================= Mine workings geometry (shared by the cut face and the 3D tunnels) ================= */
+function workings() {
+  const yc = surface0(XC, 0) - S.depth, yShaftBottom = yc - 1.6, ysh = surface0(XS, 0);
+  const galleryAt = x => yShaftBottom + (yc - yShaftBottom) * (x - XS) / (XC - XS);   // graded to drain back to the shaft
+  const gx0 = XGF - 30, gx1 = XGS - 14, gy0 = ridge(gx0) - 13.5, gy1 = ridge(gx1) - 13.5;
+  const gy = x => gy0 + (gy1 - gy0) * (x - gx0) / (gx1 - gx0);
+  return { yc, yShaftBottom, ysh, galleryAt, gx0, gx1, gy, gsh: surface0(gx1, 0) };
+}
+function isOpening(x, y, W) {
+  if (x > XS + 1.3 && x < XC - 3 && y > W.galleryAt(x) && y < W.galleryAt(x) + 1.5) return true;       // British gallery
+  if (Math.abs(x - XC) < 3 && y > W.yc - .2 && y < W.yc + 2.4) return true;                               // charge chamber
+  if (Math.abs(x - XS) < 1.3 && y > W.yShaftBottom && y < W.ysh + 3) return true;                          // British shaft
+  if (x > W.gx0 && x < W.gx1 && y > W.gy(x) && y < W.gy(x) + 1.3) return true;                            // German gallery
+  if (Math.abs(x - W.gx1) < .9 && y > W.gy(W.gx1) && y < W.gsh + 3) return true;                          // German shaft
+  return false;
+}
+
+/* ================= Geological section (cut faces) ================= */
+function paintSection(width, height, x0, x1, surfAt, horizIsX, xFixed = XMIN, W = null) {
+  const cv = document.createElement('canvas'); cv.width = width; cv.height = height;
+  const ctx = cv.getContext('2d'), img = ctx.createImageData(width, height), px = img.data;
+  const topsoil = [56, 42, 31], sandDry = [132, 114, 80], sandWet = [96, 90, 70], clayA = [74, 82, 88], clayB = [50, 56, 63];
+  for (let i = 0; i < width; i++) {
+    const h = x0 + (x1 - x0) * i / (width - 1);
+    const ys = surfAt(h), ct = clayTop(horizIsX ? h : xFixed), wt = Math.min(ys - 2.6, 4.5);
+    for (let r = 0; r < height; r++) {
+      const y = YTOP - (YTOP - YBOT) * r / (height - 1), o = (r * width + i) * 4;
+      const n = vnoise(h * 1.7, y * 3.1) * .5 + vnoise(h * 7.3, y * 11.7) * .5;
+      let c;
+      if (W && isOpening(h, y, W)) { px[o + 3] = 0; continue; }
+      if (y > ys) { const f = .7 + n * .3; px[o] = 70 * f; px[o + 1] = 54 * f; px[o + 2] = 40 * f; px[o + 3] = 255; continue; }   // heaved topsoil, only seen while the dome rises
+      const below = ys - y;
+      if (below < 1.2) c = topsoil;
+      else if (y > wt && y > ct) c = sandDry;
+      else if (y > ct) c = sandWet;
+      else if (y > ct - 1.6) c = [104, 98, 84];                                           // weathered, oxidised top of the clay
+      else { const t = Math.min(1, (ct - y) / 45); c = [clayA[0] + (clayB[0] - clayA[0]) * t, clayA[1] + (clayB[1] - clayA[1]) * t, clayA[2] + (clayB[2] - clayA[2]) * t]; }
+      let f = .82 + n * .3;
+      if (y <= ct) f += .025 * Math.sin(y * 3.1 + vnoise(h / 40, y / 6) * 2) + .1 * (vnoise(h / 3.5, y / 1.7) - .5) + (vnoise(h * .06, y * 1.4) > .82 ? -.09 : 0);   // horizontal bedding and mottling in the clay
+      if (Math.abs(y - ct) < .18 || Math.abs(y - wt) < .1 && y > ct) f *= .72;           // layer boundaries
+      if (vnoise(h * 23.1, y * 19.7) > .93) f *= 1.18;                                    // specks: flints, shells
+      px[o] = Math.min(255, c[0] * f); px[o + 1] = Math.min(255, c[1] * f); px[o + 2] = Math.min(255, c[2] * f); px[o + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  if (horizIsX) {
+    // depth ruler beside the charge
+    const toPx = (x, y) => [(x - x0) / (x1 - x0) * width, (YTOP - y) / (YTOP - YBOT) * height];
+    const rx = XC + 46, ys = surfAt(rx);
+    ctx.strokeStyle = 'rgba(245,238,220,.85)'; ctx.fillStyle = 'rgba(245,238,220,.9)'; ctx.lineWidth = 2;
+    ctx.font = '600 16px "IBM Plex Mono", monospace';
+    let [ax, ay] = toPx(rx, ys), [, by] = toPx(rx, ys - 50);
+    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(ax, by); ctx.stroke();
+    for (let d = 0; d <= 50; d += 5) { const [, ty] = toPx(rx, ys - d); ctx.beginPath(); ctx.moveTo(ax - (d % 10 ? 6 : 12), ty); ctx.lineTo(ax, ty); ctx.stroke(); if (d % 10 === 0 && d) ctx.fillText(d + ' m', ax + 6, ty + 5); }
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  tex.encoding = THREE.sRGBEncoding; tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  return tex;
+}
+function faceMesh(n, getXYZ, tex) {
+  const pos = new Float32Array((n + 1) * 2 * 3), uv = new Float32Array((n + 1) * 2 * 2), idx = [];
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  for (let i = 0; i < n; i++) { const a = i * 2, b = a + 1, c = a + 2, d = a + 3; idx.push(a, c, b, b, c, d); }
+  g.setIndex(idx);
+  const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ map: tex, roughness: .95, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: .16, alphaTest: .5, side: THREE.DoubleSide }));
+  m.userData = { n, getXYZ };
+  updateFace(m); m.receiveShadow = true;
+  return m;
+}
+function updateFace(m) {
+  const { n, getXYZ } = m.userData, pos = m.geometry.attributes.position.array, uv = m.geometry.attributes.uv.array;
+  for (let i = 0; i <= n; i++) {
+    const [x, yTop, z, u] = getXYZ(i / n);
+    pos.set([x, yTop, z, x, YBOT, z], i * 6);
+    uv.set([u, (yTop - YBOT) / (YTOP - YBOT), u, 0], i * 4);
+  }
+  m.geometry.attributes.position.needsUpdate = true; m.geometry.attributes.uv.needsUpdate = true;
+  m.geometry.computeVertexNormals();
+}
+let paintedDepth = null;
+function repaintFront() {
+  const tex = paintSection(4096, 1024, XMIN, XMAX, x => surface0(x, 0), true, XMIN, workings());
+  faceFront.material.map.dispose(); faceFront.material.map = tex; faceFront.material.emissiveMap = tex; faceFront.material.needsUpdate = true; paintedDepth = S.depth;
+}
+function buildFaces() {
+  [faceFront, ...faceSides].forEach(m => { if (m) { scene.remove(m); m.geometry.dispose(); m.material.map.dispose(); } });
+  const texF = paintSection(4096, 1024, XMIN, XMAX, x => surface0(x, 0), true, XMIN, workings()); paintedDepth = S.depth;
+  faceFront = faceMesh(nx, t => { const x = XMIN + t * (XMAX - XMIN); return [x, frontH(x), ZMAX, t]; }, texF);
+  const texL = paintSection(1024, 1024, ZMIN, ZMAX, z => surface0(XMIN, z), false);
+  const texR = paintSection(1024, 1024, ZMIN, ZMAX, z => surface0(XMAX, z), false, XMAX);
+  const side = (xf, tex) => faceMesh(nz, t => { const z = ZMIN + t * (ZMAX - ZMIN); return [xf, hAt(xf === XMIN ? XMIN + .001 : XMAX - .001, z), z, t]; }, tex);
+  faceSides = [side(XMIN, texL), side(XMAX, texR)];
+  // back face (z = ZMIN) reuses the front texture pattern
+  const texB = paintSection(2048, 512, XMIN, XMAX, x => surface0(x, ZMIN), true);
+  faceSides.push(faceMesh(nx, t => { const x = XMIN + t * (XMAX - XMIN); return [x, hAt(x, ZMIN + .001), ZMIN, t]; }, texB));
+  scene.add(faceFront, ...faceSides);
+  // plinth under the block
+  if (!scene.getObjectByName('plinth')) {
+    const p = new THREE.Mesh(new THREE.BoxGeometry(XMAX - XMIN + 8, 4, ZMAX - ZMIN + 8), new THREE.MeshStandardMaterial({ color: 0x1B1C1E, roughness: .7 }));
+    p.position.set((XMIN + XMAX) / 2, YBOT - 2, (ZMIN + ZMAX) / 2); p.name = 'plinth'; scene.add(p);
+  }
+}
+
+/* ================= Surface features ================= */
+let features = new THREE.Group(); scene.add(features);
+const destructible = [];   // instanced meshes whose instances are thrown by the blast
+function instanced(geo, mat, list, cast = true) {
+  const m = new THREE.InstancedMesh(geo, mat, list.length);
+  const o = new THREE.Object3D();
+  list.forEach((t, i) => { o.position.set(t[0], t[1], t[2]); o.rotation.set(t[3] || 0, t[4] || 0, t[5] || 0); o.scale.set(t[6] || 1, t[7] || 1, t[8] || 1); o.updateMatrix(); m.setMatrixAt(i, o.matrix); });
+  m.castShadow = cast && DETAIL[S.detail].shadows; m.receiveShadow = true;
+  m.userData.list = list; destructible.push(m); features.add(m); return m;
+}
+function buildFeatures() {
+  scene.remove(features); features.traverse(o => { if (o.geometry) o.geometry.dispose(); });
+  features = new THREE.Group(); scene.add(features); destructible.length = 0;
+  seedRand = 11;
+  const sandbag = new THREE.BoxGeometry(.62, .24, .36);
+  const bags = [], planks = [], pickets = [], wire = [], stumps = [];
+  // sandbag parapets on the enemy-facing lip of each front and support trench
+  for (const tr of TRENCHES.slice(0, 3)) {
+    const p = tr.pts;
+    for (let i = 0; i < p.length - 1; i++) {
+      const [ax, az] = p[i], [bx, bz] = p[i + 1], len = Math.hypot(bx - ax, bz - az); if (len < .5) continue;
+      const ang = Math.atan2(bz - az, bx - ax), nxv = -Math.sin(ang), nzv = Math.cos(ang);
+      const facing = tr.side < 0 ? -1 : 1;           // German parapet faces west (toward the British)
+      for (let s = .3; s < len; s += .64) {
+        const x = ax + (bx - ax) * s / len, z = az + (bz - az) * s / len;
+        const offx = x + facing * Math.abs(nxv) * 1.9, offz = z + facing * nzv * 0;
+        const y0 = hAt(offx, offz);
+        for (let layer = 0; layer < 3; layer++) bags.push([offx + (rnd() - .5) * .08, y0 + .12 + layer * .24, offz, 0, ang + (layer % 2 ? .08 : -.08), 0]);
+        planks.push([x, hAt(x, z) + .08, z, 0, ang, 0]);
+      }
+    }
+  }
+  instanced(sandbag, new THREE.MeshStandardMaterial({ color: 0x8E7F62, roughness: 1 }), bags);
+  instanced(new THREE.BoxGeometry(.6, .05, .75), new THREE.MeshStandardMaterial({ color: 0x5C4630, roughness: 1 }), planks, false);
+  // barbed-wire belts in front of both front lines
+  const belts = [[XGF - 34, XGF - 12], [XBF + 8, XBF + 22]];
+  for (const [xa, xb] of belts) {
+    for (let z = ZMIN + 3; z < -1; z += 2.6) for (let row = 0; row < 3; row++) {
+      const x = xa + (xb - xa) * (row + .5) / 3 + (rnd() - .5) * 2.2, zz = z + (rnd() - .5) * 1.4, y = hAt(x, zz);
+      pickets.push([x, y + .6, zz, (rnd() - .5) * .25, 0, (rnd() - .5) * .25]);
+    }
+  }
+  instanced(new THREE.CylinderGeometry(.04, .05, 1.25, 5), new THREE.MeshStandardMaterial({ color: 0x3E3328, roughness: 1 }), pickets);
+  // wire: zigzag strands between pickets in each belt row
+  const wpos = [];
+  for (let i = 0; i + 3 < pickets.length; i++) {
+    const a = pickets[i], b = pickets[i + 3];
+    if (Math.abs(a[2] - b[2]) > 4) continue;
+    for (const hgt of [-.35, .05, .45]) wpos.push(a[0], a[1] + hgt, a[2], b[0], b[1] + hgt + .15, b[2]);
+    if (i % 2 === 0) wpos.push(a[0], a[1] + .5, a[2], b[0], b[1] - .45, b[2]);
+  }
+  const wg = new THREE.BufferGeometry(); wg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(wpos), 3));
+  const wireLines = new THREE.LineSegments(wg, new THREE.LineBasicMaterial({ color: S.night ? 0x1C1B19 : 0x4A4640, transparent: true, opacity: .9 }));
+  wireLines.userData.isWire = true; features.add(wireLines);
+  // shattered tree stumps (the ridge was once wooded and farmed)
+  for (let i = 0; i < 46; i++) {
+    const x = XBF - 120 + rnd() * 330, z = ZMIN + 5 + rnd() * 200, y = hAt(x, z), hgt = 1 + rnd() * 5;
+    stumps.push([x, y + hgt / 2, z, (rnd() - .5) * .3, rnd() * 3, (rnd() - .5) * .3, 1, hgt, 1]);
+  }
+  instanced(new THREE.CylinderGeometry(.18, .32, 1, 6), new THREE.MeshStandardMaterial({ color: 0x2F271F, roughness: 1 }), stumps);
+  // German concrete blockhouse behind the front line
+  const bh = [XGS - 8, hAt(XGS - 8, -46), -46];
+  const block = instanced(new THREE.BoxGeometry(6.5, 2.6, 5), new THREE.MeshStandardMaterial({ color: 0x7B7A74, roughness: .9 }), [[bh[0], bh[1] + 1.1, bh[2]]]);
+  // rubble of the Spanbroek windmill
+  const rubble = [];
+  for (let i = 0; i < 60; i++) { const x = XC + 16 + (rnd() - .5) * 9, z = -70 + (rnd() - .5) * 9; rubble.push([x, hAt(x, z) + .25 + rnd() * .5, z, rnd() * 3, rnd() * 3, rnd() * 3, .5 + rnd(), .3 + rnd() * .4, .4 + rnd() * .6]); }
+  instanced(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color: 0x7A4A38, roughness: 1 }), rubble);
+  // British shaft head: timber head-frame and winch shed
+  const ys = hAt(XS, -3);
+  const wood = new THREE.MeshStandardMaterial({ color: 0x6A5236, roughness: 1 });
+  const frame = new THREE.Group();
+  [[-1.4, -1.4], [1.4, -1.4], [-1.4, -4.2], [1.4, -4.2]].forEach(([dx, dz]) => { const leg = new THREE.Mesh(new THREE.BoxGeometry(.25, 6, .25), wood); leg.position.set(XS + dx, ys + 3, dz); frame.add(leg); });
+  const beam = new THREE.Mesh(new THREE.BoxGeometry(3.3, .3, 3.3), wood); beam.position.set(XS, ys + 6, -2.8); frame.add(beam);
+  const shed = new THREE.Mesh(new THREE.BoxGeometry(6, 3, 4), new THREE.MeshStandardMaterial({ color: 0x55503F, roughness: 1 })); shed.position.set(XS - 7, ys + 1.5, -6); frame.add(shed);
+  frame.traverse(o => { o.castShadow = DETAIL[S.detail].shadows; });
+  features.add(frame);
+}
+
+/* ================= Underground workings: open-fronted rooms behind the cut face ================= */
+let under = new THREE.Group(); scene.add(under);
+let chamber = { x: XC, y: 0 }, glowLines = [];
+function buildUnderground() {
+  scene.remove(under); under.traverse(o => { if (o.geometry) o.geometry.dispose(); });
+  under = new THREE.Group(); scene.add(under); glowLines = [];
+  const W = workings(), { yc, yShaftBottom, ysh, galleryAt, gx0, gx1, gy, gsh } = W;
+  chamber = { x: XC, y: yc };
+  // Each working is a box seen from inside (BackSide): through the hole in the cut face you see its back wall, floor and roof.
+  const clayWall = new THREE.MeshStandardMaterial({ color: 0x5A646B, roughness: 1, side: THREE.BackSide, emissive: 0x1E2428, emissiveIntensity: 1 });
+  const sandWall = new THREE.MeshStandardMaterial({ color: 0x7A6C4E, roughness: 1, side: THREE.BackSide, emissive: 0x241F15, emissiveIntensity: 1 });
+  const room = (cx, cy, w, h, depth, mat = clayWall, rot = 0) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, depth), mat); m.position.set(cx, cy, -depth / 2); m.rotation.z = rot; under.add(m); return m; };
+  const run = (x0, x1, yf, h, depth) => { const L = x1 - x0, a = Math.atan2(yf(x1) - yf(x0), L), cx = (x0 + x1) / 2; room(cx, yf(cx) + h / 2, L / Math.cos(a), h, depth, clayWall, a); };
+  run(XS + 1.3, XC - 3, galleryAt, 1.5, .9);                      // British gallery, about 0.9 m wide x 1.5 m high
+  room(XC, yc + 1.1, 6, 2.6, 2.4);                                // charge chamber
+  const ct = clayTop(XS);
+  room(XS, (ct + ysh) / 2, 2.6, ysh - ct, 2.6, sandWall);         // shaft through the sand...
+  room(XS, (yShaftBottom + ct) / 2, 2.6, ct - yShaftBottom, 2.6); // ...and on down into the clay
+  run(gx0, gx1, gy, 1.3, .8);                                      // German gallery
+  room(gx1, (gy(gx1) + gsh) / 2, 1.8, gsh - gy(gx1), 1.8, sandWall);
+  const wood = new THREE.MeshStandardMaterial({ color: 0x8A6A42, roughness: 1, emissive: 0x22190E, emissiveIntensity: 1 });
+  const put = (list, geoMat, flag) => { const m = instanced(new THREE.BoxGeometry(1, 1, 1), geoMat, list, false); m.userData.under = true; if (flag) m.userData[flag] = true; features.remove(m); under.add(m); return m; };
+  // timber sets every 1.2 m: legs against the back wall and at the cut face, cap across the roof
+  const sets = [];
+  for (let x = XS + 2; x < XC - 34; x += 1.2) { const y = galleryAt(x); sets.push([x, y + .75, -.82, 0, 0, 0, .12, 1.5, .12], [x, y + .75, -.08, 0, 0, 0, .12, 1.5, .12], [x, y + 1.44, -.45, 0, 0, 0, .12, .12, .9]); }
+  for (let x = gx0 + 1; x < gx1 - 1; x += 1.3) { const y = gy(x); sets.push([x, y + .65, -.72, 0, 0, 0, .1, 1.3, .1], [x, y + 1.24, -.4, 0, 0, 0, .1, .1, .8]); }
+  put(sets, wood);
+  // shaft lining: steel tubbing rings through the water-bearing sand, timber in the clay
+  const steel = [], timber = [];
+  for (let y = ysh - .5; y > yShaftBottom + .2; y -= 1) {
+    const ring = [[XS, y, -2.52, 0, 0, 0, 2.6, .16, .16], [XS - 1.22, y, -1.3, 0, 0, 0, .16, .16, 2.6], [XS + 1.22, y, -1.3, 0, 0, 0, .16, .16, 2.6]];
+    (y > ct - 1 ? steel : timber).push(...ring);
+  }
+  put(steel, new THREE.MeshStandardMaterial({ color: 0x747B80, roughness: .45, metalness: .7, emissive: 0x15181A, emissiveIntensity: 1 }));
+  put(timber, wood);
+  // tamping: the last ~30 m of gallery packed with sandbags so the blast goes up, not back
+  const tamp = [];
+  for (let x = XC - 33; x < XC - 3.2; x += .62) for (let r = 0; r < 5; r++) for (const z of [-.2, -.48, -.74]) tamp.push([x + (r % 2) * .3, galleryAt(x) + .16 + r * .28, z, 0, 0, 0, .6, .26, .26]);
+  put(tamp, new THREE.MeshStandardMaterial({ color: 0x9A8766, roughness: 1, emissive: 0x241E14, emissiveIntensity: 1 }));
+  // the charge: ammonal in waterproofed tins, stacked through the chamber
+  const tins = [];
+  for (let i = 0; i < 14; i++) for (let r = 0; r < 6; r++) for (let d = 0; d < 5; d++) tins.push([XC - 2.6 + i * .38, yc + .22 + r * .4, -.3 - d * .44, 0, 0, 0, .34, .38, .38]);
+  put(tins, new THREE.MeshStandardMaterial({ color: 0xA9A28C, roughness: .5, metalness: .5, emissive: 0x201E18, emissiveIntensity: 1 }), 'charge');
+  // firing leads along the gallery floor back to the shaft
+  const lead = []; for (let x = XS + 1; x <= XC - 2; x += 4) lead.push(new THREE.Vector3(x, galleryAt(x) + .08, -.3));
+  under.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(lead), new THREE.LineBasicMaterial({ color: 0xC0392B })));
+  // highlight lines (not to scale) so the workings read from far away
+  const glow = (pts, color) => { const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color, transparent: true, opacity: .9 })); l.renderOrder = 5; under.add(l); glowLines.push(l); };
+  glow([new THREE.Vector3(XS, ysh, .3), new THREE.Vector3(XS, yShaftBottom + .7, .3), new THREE.Vector3(XC, yc + .7, .3)], 0xE8C27A);
+  glow([new THREE.Vector3(gx1, gsh, .3), new THREE.Vector3(gx1, gy(gx1) + .6, .3), new THREE.Vector3(gx0, gy(gx0) + .6, .3)], 0x9FB6D8);
+  glowLines.forEach(l => l.visible = S.glow);
+  under.userData = W;
+  if (faceFront && paintedDepth !== S.depth) repaintFront();
+}
+
+/* ================= Crater physics (scaled-depth model) ================= */
+function blastModel() {
+  const W = S.charge * 1000, cube = Math.cbrt(W), lam = S.depth / cube;        // kg, scaled depth (m/kg^1/3)
+  const craterF = 1.15 * Math.exp(-Math.pow(lam - .8, 2) / (2 * .6 * .6));      // crater radius per kg^1/3
+  const camouflet = lam > 1.9;
+  const R = camouflet ? 0 : cube * craterF;
+  const D = R * .33;                                                             // apparent depth
+  const rim = R * .11;
+  const plume = camouflet ? 0 : cube * 6.2 * Math.exp(-Math.pow(lam - .55, 2) / (2 * .75 * .75));
+  const cavity = cube * .42 * Math.min(1.6, .7 + lam * .35);
+  const shockUp = S.depth / 1800;                                                // stress wave speed in wet clay ~1.8 km/s
+  const vent = shockUp + .12 + lam * .06;
+  return { W, cube, lam, R, D, rim, plume, camouflet, cavity, shockUp, vent };
+}
+function craterProfile(r, M) { if (M.camouflet) return r < M.cavity * 2 ? -.35 * (1 - r / (M.cavity * 2)) : 0; const q = r / M.R; return q < 1 ? -M.D * (1 - q * q) + M.rim * q ** 4 : M.rim * Math.pow(1 / q, 3) * Math.max(0, 1 - (q - 1) / 3.2); }
+function domeProfile(r, M) { const s = M.camouflet ? M.cavity * 2.2 : M.R * .85; return Math.exp(-((r / s) ** 2)); }
+
+/* ================= Particles ================= */
+function dotTexture(soft) {
+  const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d');
+  const gr = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+  if (soft) { gr.addColorStop(0, 'rgba(255,255,255,.9)'); gr.addColorStop(.45, 'rgba(255,255,255,.35)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); }
+  else { gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(.6, 'rgba(255,255,255,.95)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); }
+  x.fillStyle = gr; x.fillRect(0, 0, 64, 64); const t = new THREE.CanvasTexture(x.canvas); return t;
+}
+const texHard = dotTexture(false), texSoft = dotTexture(true);
+texHard.generateMipmaps = false; texHard.minFilter = THREE.LinearFilter;   // mipmaps turned tiny clods into hollow rings
+// billowing smoke puff: noisy, soft-edged, rotated per particle in the shader
+const texSmoke = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d'), img = x.createImageData(128, 128), d = img.data;
+  for (let j = 0; j < 128; j++) for (let i = 0; i < 128; i++) {
+    const r = Math.hypot(i - 64, j - 64) / 64, n = .5 * vnoise(i / 11, j / 11) + .3 * vnoise(i / 5 + 9, j / 5) + .2 * vnoise(i / 2.4 + 3, j / 2.4), o = (j * 128 + i) * 4;
+    const a = Math.pow(Math.max(0, 1 - r), 1.3) * Math.min(1, Math.max(0, .15 + n * 1.25));
+    const v = Math.round(255 * (.78 + .22 * n)); d[o] = d[o + 1] = d[o + 2] = v; d[o + 3] = Math.round(255 * a);
+  }
+  x.putImageData(img, 0, 0); return new THREE.CanvasTexture(c);
+})();
+const SMOKE_VS = `attribute vec3 tint; attribute float alpha; attribute float psize; attribute float rot;
+uniform float scale; varying vec3 vTint; varying float vAlpha; varying float vRot; varying float vDepth;
+void main(){ vTint = tint; vAlpha = alpha; vRot = rot; vec4 mv = modelViewMatrix * vec4(position, 1.0); vDepth = -mv.z;
+  gl_PointSize = psize * scale / max(1.0, -mv.z); gl_Position = projectionMatrix * mv; }`;
+const SMOKE_FS = `uniform sampler2D map; uniform vec3 fogColor; uniform float fogNear; uniform float fogFar;
+varying vec3 vTint; varying float vAlpha; varying float vRot; varying float vDepth;
+void main(){ vec2 p = gl_PointCoord - 0.5; float c = cos(vRot), s = sin(vRot); p = mat2(c, -s, s, c) * p + 0.5;
+  vec4 t = texture2D(map, p); float a = t.a * vAlpha; if (a < 0.004) discard;
+  float f = smoothstep(fogNear, fogFar, vDepth); gl_FragColor = vec4(mix(vTint * t.rgb, fogColor, f), a); }`;
+const smokeMats = [];
+function makeSmoke(n, additive) {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3).fill(-9999), 3));
+  g.setAttribute('tint', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+  g.setAttribute('alpha', new THREE.BufferAttribute(new Float32Array(n), 1));
+  g.setAttribute('psize', new THREE.BufferAttribute(new Float32Array(n), 1));
+  g.setAttribute('rot', new THREE.BufferAttribute(new Float32Array(n), 1));
+  const mat = new THREE.ShaderMaterial({ uniforms: { map: { value: texSmoke }, scale: { value: 400 }, fogColor: { value: new THREE.Color() }, fogNear: { value: 1 }, fogFar: { value: 2 } },
+    vertexShader: SMOKE_VS, fragmentShader: SMOKE_FS, transparent: true, depthWrite: false, blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending });
+  smokeMats.push(mat);
+  const p = new THREE.Points(g, mat); p.frustumCulled = false; p.visible = false; scene.add(p); return p;
+}
+let ejecta, fire, dust, sim = null;
+function makePoints(n, mat) {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+  g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+  const p = new THREE.Points(g, mat); p.frustumCulled = false; p.visible = false; scene.add(p); return p;
+}
+function buildParticles() {
+  [ejecta, fire, dust].forEach(p => { if (p) { scene.remove(p); p.geometry.dispose(); p.material.dispose(); } });
+  smokeMats.length = 0;
+  const d = DETAIL[S.detail];
+  ejecta = makePoints(d.ejecta, new THREE.PointsMaterial({ size: .7, map: texHard, vertexColors: true, transparent: true, alphaTest: .2, sizeAttenuation: true, depthWrite: true }));
+  fire = makeSmoke(d.fire, true);
+  dust = makeSmoke(d.dust, false);
+}
+const _dbs = new THREE.Vector2();
+function syncSmokeUniforms() {
+  renderer.getDrawingBufferSize(_dbs);
+  for (const m of smokeMats) { m.uniforms.scale.value = _dbs.y * .5; m.uniforms.fogColor.value.copy(scene.fog.color); m.uniforms.fogNear.value = scene.fog.near; m.uniforms.fogFar.value = scene.fog.far; }
+}
+
+/* ================= Shock waves ================= */
+const faceRing = new THREE.Mesh(new THREE.RingGeometry(.9, 1, 96), new THREE.MeshBasicMaterial({ color: 0xFFD08A, transparent: true, opacity: 0, depthWrite: false, depthTest: false }));
+faceRing.renderOrder = 6; scene.add(faceRing);
+// fallback/breccia zone drawn on the cut face beneath the crater
+// broken clay and debris that fell back into the crater: lumps of blue clay in darker spoil
+const brecciaTex = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 256; const x = c.getContext('2d'), img = x.createImageData(256, 256), d = img.data;
+  for (let j = 0; j < 256; j++) for (let i = 0; i < 256; i++) {
+    const lump = vnoise(i / 9, j / 9), grit = vnoise(i / 2.2 + 40, j / 2.2), o = (j * 256 + i) * 4;
+    let c0 = lump > .62 ? [92, 102, 108] : lump < .3 ? [60, 50, 40] : [74, 70, 64];
+    const f = .78 + grit * .35; d[o] = c0[0] * f; d[o + 1] = c0[1] * f; d[o + 2] = c0[2] * f; d[o + 3] = 255;
+  }
+  x.putImageData(img, 0, 0); const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(1 / 9, 1 / 9); t.encoding = THREE.sRGBEncoding; return t;
+})();
+const fallback = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ map: brecciaTex, transparent: true, opacity: 0 }));
+fallback.renderOrder = 4; scene.add(fallback);
+function buildFallback(M) {
+  const pts = [], n = 64;
+  if (M.camouflet) {
+    for (let i = 0; i <= n; i++) { const a = i / n * Math.PI * 2; pts.push(new THREE.Vector2(chamber.x + Math.cos(a) * M.cavity, chamber.y + 1 + Math.sin(a) * M.cavity)); }
+  } else {
+    const Rt = M.R * 1.08, bottom = chamber.y - M.cube * .12;
+    for (let i = 0; i <= n; i++) { const x = chamber.x - Rt + 2 * Rt * i / n, q = (x - chamber.x) / Rt; pts.push(new THREE.Vector2(x, surface0(x, 0) + craterProfile(Math.abs(x - chamber.x), M) - .3)); }
+    for (let i = n; i >= 0; i--) { const x = chamber.x - Rt + 2 * Rt * i / n, q = (x - chamber.x) / Rt; pts.push(new THREE.Vector2(x, Math.min(surface0(x, 0) - .5, bottom + (surface0(chamber.x, 0) - bottom) * q * q))); }
+  }
+  fallback.geometry.dispose(); fallback.geometry = new THREE.ShapeGeometry(new THREE.Shape(pts)); fallback.position.z = .2;
+}
+
+/* ================= Sound ================= */
+let ac = null;
+function boom(M) {
+  if (!S.sound) return;
+  try {
+    ac = ac || new (window.AudioContext || window.webkitAudioContext)(); ac.resume();
+    const len = ac.sampleRate * 7, buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
+    let last = 0; for (let i = 0; i < len; i++) { last = last * .985 + (Math.random() * 2 - 1) * .15; d[i] = last; }
+    const src = ac.createBufferSource(); src.buffer = buf;
+    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 180;
+    const g = ac.createGain(), t = ac.currentTime, vol = Math.min(1.4, .35 + M.cube / 40);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + .04); g.gain.exponentialRampToValueAtTime(.001, t + 6.5);
+    src.connect(lp).connect(g).connect(ac.destination); src.start();
+  } catch (e) { /* audio is optional */ }
+}
+
+/* ================= Simulation ================= */
+const stages = [
+  [0, 'Detonation: the charge fires'],
+  ['shockUp', 'Shock wave racing up through the clay'],
+  ['vent', 'Ground heaves into a dome, then bursts'],
+  ['vent+1.2', 'A column of earth and flame rises'],
+  ['vent+4', 'Debris falling back across the lines'],
+  ['vent+12', 'Dust cloud drifting over the ridge'],
+  ['vent+22', 'Crater formed']
+];
+function stageText(t, M) {
+  let txt = stages[0][1];
+  for (const [k, s] of stages) {
+    const at = typeof k === 'number' ? k : k === 'shockUp' ? M.shockUp : M.vent + (k.includes('+') ? parseFloat(k.split('+')[1]) : 0);
+    if (t >= at) txt = s;
+  }
+  if (M.camouflet && t > M.vent) txt = t > M.vent + 3 ? 'Camouflet: too deep to break the surface' : 'Ground heaves, but the blast stays underground';
+  return txt;
+}
+function detonate() {
+  if (sim) return;
+  const M = blastModel(), d = DETAIL[S.detail];
+  // precompute the final crater on the grid
+  const w = nx + 1, affected = [];
+  const reach = M.camouflet ? M.cavity * 3 : M.R * 4.2;
+  for (let j = 0; j <= nz; j++) for (let i = 0; i <= nx; i++) {
+    const k = j * w + i, x = XMIN + i * (XMAX - XMIN) / nx, z = ZMIN + j * (ZMAX - ZMIN) / nz, r = Math.hypot(x - chamber.x, z);
+    if (r < reach) { affected.push(k, r); finalDisp[k] = craterProfile(r, M); }
+  }
+  buildFallback(M);
+  // particles
+  const E = d.ejecta, epos = ejecta.geometry.attributes.position.array, ecol = ejecta.geometry.attributes.color.array;
+  const ev = new Float32Array(E * 3), eLaunch = new Float32Array(E), eState = new Uint8Array(E), eDrag = new Float32Array(E), eStart = new Float32Array(E * 2);
+  const clay = [new THREE.Color('#4E565E'), new THREE.Color('#3E352C'), new THREE.Color('#5E574A'), new THREE.Color('#2E2721')];
+  const vmax = Math.sqrt(2 * G * Math.max(1, M.plume));
+  const R = Math.max(1, M.R);
+  for (let i = 0; i < E; i++) {
+    const a = Math.random() * Math.PI * 2, column = Math.random() < .62;
+    // column: thrown nearly straight up, landing within about 2 crater radii (the ejecta blanket)
+    // curtain: an outward-leaning cone of debris from the crater walls, landing 1-3 radii out
+    let rr, vy, vh;
+    if (column) { rr = R * .38 * Math.sqrt(Math.random()); vy = vmax * (.3 + .7 * Math.pow(Math.random(), .6)); const land = R * (.2 + 1.7 * Math.pow(Math.random(), 1.4)); vh = land * G / (2 * vy); }
+    else { rr = R * (.35 + .55 * Math.random()); const th = (35 + Math.random() * 28) * Math.PI / 180, range = R * (1 + 2.2 * Math.pow(Math.random(), 2)), v = Math.sqrt(range * G / Math.sin(2 * th)); vy = v * Math.sin(th); vh = v * Math.cos(th); }
+    if (M.camouflet) rr = M.cavity * Math.random();
+    const x = chamber.x + Math.cos(a) * rr, z = Math.sin(a) * rr;
+    eStart.set([x, z], i * 2); epos.set([x, -9999, z], i * 3);
+    ev.set([Math.cos(a) * vh, vy, Math.sin(a) * vh], i * 3);
+    eLaunch[i] = M.camouflet ? 1e9 : M.vent + Math.pow(Math.random(), 2) * (column ? .6 : 1.1);
+    eDrag[i] = Math.random() < .4 ? .006 : .03;                         // big clods vs fine spoil
+    const c = clay[(Math.random() * 4) | 0]; ecol.set([c.r, c.g, c.b], i * 3);
+  }
+  if (S.night) for (let i = 0; i < ecol.length; i++) ecol[i] *= .38;   // unlit debris would otherwise glow like stars at night
+  ejecta.geometry.attributes.color.needsUpdate = true;
+  // flame: brief orange tongues in the throat of the column
+  const F = d.fire, fv = new Float32Array(F * 3), fLife = new Float32Array(F), fStart = new Float32Array(F);
+  for (let i = 0; i < F; i++) { const a = Math.random() * Math.PI * 2, h = R * .18 * Math.random(); fv.set([Math.cos(a) * h, vmax * (.2 + .55 * Math.random()), Math.sin(a) * h], i * 3); fLife[i] = .5 + Math.random() * 1.1; fStart[i] = M.camouflet ? 1e9 : M.vent + Math.random() * .5; }
+  // dust: 62% a broad fountain of earth rising from the whole crater, 38% a base surge rolling out along the ground
+  const Dn = d.dust, dv = new Float32Array(Dn * 3), dStart = new Float32Array(Dn), dLife = new Float32Array(Dn), dKind = new Uint8Array(Dn), dK = new Float32Array(Dn), dSize = new Float32Array(Dn), dSpin = new Float32Array(Dn);
+  for (let i = 0; i < Dn; i++) {
+    const a = Math.random() * Math.PI * 2, surge = Math.random() < .38; dKind[i] = surge ? 1 : 0;
+    if (surge) { const v = 8 + Math.random() * 20; dv.set([Math.cos(a) * v, 1 + Math.random() * 3, Math.sin(a) * v], i * 3); dK[i] = .32; dStart[i] = M.vent + .3 + Math.random() * 1.3; dSize[i] = 12 + Math.random() * 14; }
+    else { dK[i] = .22 + Math.random() * .12; const f = .12 + .95 * Math.pow(Math.random(), 1.35); dv.set([Math.cos(a) * 3 * Math.random(), M.plume * dK[i] * f, Math.sin(a) * 3 * Math.random()], i * 3); dStart[i] = M.vent + .05 + Math.pow(Math.random(), 2) * 1.8; dSize[i] = 9 + Math.random() * 13; }
+    if (M.camouflet) dStart[i] = 1e9;
+    dLife[i] = 35 + Math.random() * 45; dSpin[i] = (Math.random() - .5) * .3;
+    dust.geometry.attributes.rot.array[i] = Math.random() * 6.28;
+  }
+  // crack pattern that opens across the heaving dome
+  const crack = new Float32Array(affected.length / 2);
+  for (let q = 0; q < affected.length; q += 2) { const k = affected[q], x = XMIN + (k % w) * (XMAX - XMIN) / nx, z = ZMIN + Math.floor(k / w) * (ZMAX - ZMIN) / nz; crack[q / 2] = Math.abs(vnoise(x / 2.6, z / 2.6) - .5) < .045 ? 1 : .18; }
+  ejecta.visible = true; fire.visible = true; dust.visible = S.dust;
+  sim = { t: 0, M, affected, crack, eStart, ev, eLaunch, eState, eDrag, fv, fLife, fStart, dv, dStart, dLife, dKind, dK, dSize, dSpin, boomed: false, thrown: false, settledFrames: 0 };
+  $('fire').disabled = true;
+}
+function clearEffects() {
+  fallback.material.opacity = 0; faceRing.material.opacity = 0; blastLight.intensity = 0; chamberLight.intensity = 0;
+  [ejecta, fire, dust].forEach(p => { if (p) p.visible = false; });
+}
+function resetSim() {
+  sim = null;
+  curH.set(baseH); finalDisp.fill(0);
+  const p = terrain.geometry.attributes.position.array; for (let k = 0; k < curH.length; k++) p[k * 3 + 1] = curH[k];
+  terrain.geometry.attributes.position.needsUpdate = true; terrain.geometry.computeVertexNormals();
+  terrainColors.set(baseColors); terrain.geometry.attributes.color.needsUpdate = true;
+  [faceFront, ...faceSides].forEach(updateFace);
+  [ejecta, fire, dust].forEach(p => p.visible = false);
+  clearEffects();
+  buildFeatures(); buildUnderground();
+  $('fire').disabled = false; $('tclock').textContent = 't = 0.000 s'; $('stage').textContent = 'Ready. Press Detonate.';
+}
+function throwFeatures(M) {
+  const reach = M.R * 1.25, o = new THREE.Object3D(), mtx = new THREE.Matrix4();
+  for (const m of [...destructible]) {
+    const list = m.userData.list; if (!list) continue; let hit = false;
+    for (let i = 0; i < list.length; i++) {
+      const t = list[i]; if (Math.hypot(t[0] - chamber.x, t[2]) < (m.userData.under ? M.R * .8 + M.cube * .35 : reach)) { mtx.makeScale(0, 0, 0); m.setMatrixAt(i, mtx); hit = true; }
+    }
+    if (hit) m.instanceMatrix.needsUpdate = true;
+  }
+  features.children.forEach(c => { if (c.userData.isWire) { const a = c.geometry.attributes.position.array; for (let i = 0; i < a.length; i += 6) if (Math.hypot(a[i] - chamber.x, a[i + 2]) < reach) { a[i + 3] = a[i]; a[i + 4] = a[i + 1]; a[i + 5] = a[i + 2]; } c.geometry.attributes.position.needsUpdate = true; } });
+}
+const ease = t => t < 0 ? 0 : t > 1 ? 1 : 1 - Math.pow(1 - t, 3);
+function stepSim(dtReal) {
+  const M = sim.M;
+  const speed = Math.pow(10, S.speedLog);
+  const slow = S.slowmo && sim.t < M.vent + .6 ? .08 : 1;
+  const dt = Math.min(.1, dtReal) * speed * slow;
+  const subs = DETAIL[S.detail].sub;
+  for (let s = 0; s < subs; s++) advance(dt / subs);
+}
+function advance(dt) {
+  const M = sim.M; sim.t += dt; const t = sim.t;
+  // ground: dome then crater
+  const domeH = M.camouflet ? .6 : Math.min(M.R * .32, 14);
+  const rise = ease((t - M.shockUp) / (M.vent - M.shockUp + .15)), burst = ease((t - M.vent) / .5), form = ease((t - M.vent - .2) / 3.2);
+  const pos = terrain.geometry.attributes.position.array, col = terrainColors, a = sim.affected;
+  const domeAmt = domeH * rise * (1 - burst);
+  if (t > M.shockUp && sim.settledFrames < 3) {
+    for (let q = 0; q < a.length; q += 2) {
+      const k = a[q], r = a[q + 1];
+      const y = baseH[k] + domeAmt * domeProfile(r, M) + finalDisp[k] * form;
+      curH[k] = y; pos[k * 3 + 1] = y;
+      let cr = baseColors[k * 3], cg = baseColors[k * 3 + 1], cb = baseColors[k * 3 + 2];
+      const bd = domeAmt > .05 ? Math.min(1, domeAmt / domeH * 1.4) * sim.crack[q / 2] * domeProfile(r, M) : 0;   // dry, split crust on the dome
+      if (bd > 0) { cr += (crackCol.r - cr) * bd; cg += (crackCol.g - cg) * bd; cb += (crackCol.b - cb) * bd; }
+      if (!M.camouflet && form > 0) {      // ejecta blanket: grey clay over the mud
+        const blend = Math.min(.85, Math.pow(M.R * 1.1 / Math.max(r, 1), 2) * .6) * form;
+        cr += (clayCol.r - cr) * blend; cg += (clayCol.g - cg) * blend; cb += (clayCol.b - cb) * blend;
+      }
+      col[k * 3] = cr; col[k * 3 + 1] = cg; col[k * 3 + 2] = cb;
+    }
+    terrain.geometry.attributes.position.needsUpdate = true; terrain.geometry.attributes.color.needsUpdate = true;
+    if (form >= 1 && burst >= 1) sim.settledFrames++;
+    sim.needNormals = true;
+  }
+  if (t > M.vent && !sim.thrown) { sim.thrown = true; throwFeatures(M); glowLines.forEach(l => l.visible = false); }
+  fallback.material.opacity = M.camouflet ? .92 * ease((t - M.shockUp) / .3) : .95 * form;
+  // lights
+  const flash = t < M.vent ? (t > 0 ? .5 : 0) : Math.exp(-(t - M.vent) * 1.6);
+  chamberLight.position.set(chamber.x, chamber.y + 1.2, -1.2); chamberLight.intensity = t < M.vent + .3 ? 5 * Math.exp(-t * 4) + 1.5 : 0;
+  blastLight.position.set(chamber.x, hAt(chamber.x, -.5) + 40, -12); blastLight.intensity = M.camouflet ? 0 : (S.night ? 1.2 : 1.8) * flash * Math.min(1.4, M.cube / 30);
+  // shock waves
+  const cSoil = 1800, cAir = 343;
+  if (S.waves) {
+    const rf = t * cSoil; faceRing.position.set(chamber.x, chamber.y + 1, .35); faceRing.scale.setScalar(Math.max(.1, rf)); faceRing.material.opacity = rf < 90 ? .75 * (1 - rf / 90) : 0;
+  } else { faceRing.material.opacity = 0; }
+  if (t > M.vent && !sim.boomed) { sim.boomed = true; boom(M); }
+  // ejecta
+  const ep = ejecta.geometry.attributes.position.array, ev = sim.ev, st = sim.eState;
+  for (let i = 0; i < st.length; i++) {
+    if (st[i] === 2 || t < sim.eLaunch[i]) continue;
+    const o = i * 3;
+    if (st[i] === 0) { const sx = sim.eStart[i * 2], sz = sim.eStart[i * 2 + 1]; ep[o] = sx; ep[o + 1] = hAt(sx, Math.min(-.01, sz)); ep[o + 2] = sz; }
+    st[i] = 1; const dr = 1 - sim.eDrag[i] * dt;
+    ev[o] *= dr; ev[o + 2] *= dr; ev[o + 1] = ev[o + 1] * dr - G * dt;
+    ep[o] += ev[o] * dt; ep[o + 1] += ev[o + 1] * dt; ep[o + 2] += ev[o + 2] * dt;
+    if (ev[o + 1] < 0) {
+      // the model only has ground behind the cut face; debris landing in front of it is removed
+      const front = ep[o + 2] > 0, gz = hAt(ep[o], front ? -.01 : ep[o + 2]);
+      if (ep[o + 1] <= gz) { if (front || gz === -Infinity) ep[o + 1] = -9999; else ep[o + 1] = gz + .15; st[i] = 2; }
+    }
+  }
+  ejecta.geometry.attributes.position.needsUpdate = true;
+  // fire column (additive smoke sprites, capped so they stay orange rather than white)
+  const fg = fire.geometry.attributes, fp = fg.position.array, ft = fg.tint.array, fa = fg.alpha.array, fs = fg.psize.array, fr = fg.rot.array, fv = sim.fv;
+  for (let i = 0; i < sim.fLife.length; i++) {
+    const age = t - sim.fStart[i], o = i * 3;
+    if (age < 0 || age > sim.fLife[i]) { fp[o + 1] = -9999; fa[i] = 0; continue; }
+    if (age - dt <= 0) { fp[o] = chamber.x + fv[o] * 1.5; fp[o + 1] = hAt(chamber.x, -.5) + 2; fp[o + 2] = Math.min(-.5, fv[o + 2] * 1.5); fr[i] = Math.random() * 6.28; }
+    const fd = Math.exp(-1.1 * dt); fv[o] *= fd; fv[o + 1] = fv[o + 1] * fd - G * .2 * dt; fp[o] += fv[o] * dt; fp[o + 1] += fv[o + 1] * dt; fp[o + 2] += fv[o + 2] * dt;
+    const k = age / sim.fLife[i];
+    ft[o] = .95; ft[o + 1] = .42 * (1 - k) + .12; ft[o + 2] = .1 * (1 - k);
+    fa[i] = .32 * (1 - k); fs[i] = 7 + age * 9; fr[i] += dt * .4;
+  }
+  fg.position.needsUpdate = fg.tint.needsUpdate = fg.alpha.needsUpdate = fg.psize.needsUpdate = fg.rot.needsUpdate = true;
+  // dust: always simulated so switching it back on mid-blast shows it in the right place
+  const dg = dust.geometry.attributes, dp = dg.position.array, dt2 = dg.tint.array, da = dg.alpha.array, ds = dg.psize.array, drt = dg.rot.array, dv = sim.dv;
+  const aged = S.night ? [.2, .19, .18] : [.46, .42, .37], young0 = S.night ? [.08, .06, .045] : [.17, .13, .09];
+  for (let i = 0; i < sim.dLife.length; i++) {
+    const age = t - sim.dStart[i], o = i * 3;
+    if (age < 0 || age > sim.dLife[i]) { dp[o + 1] = -9999; da[i] = 0; continue; }
+    if (age - dt <= 0) {
+      const a = Math.random() * 6.28, rr = (sim.dKind[i] ? M.R * (.7 + .4 * Math.random()) : M.R * .8 * Math.sqrt(Math.random()));
+      dp[o] = chamber.x + Math.cos(a) * rr; dp[o + 2] = Math.min(-1, Math.sin(a) * rr); dp[o + 1] = hAt(dp[o], dp[o + 2]) + 2;
+    }
+    const k = sim.dK[i], damp = Math.exp(-k * dt), wind = 3.2 * Math.min(1, age / 6);
+    dv[o] *= damp; dv[o + 2] *= damp; dv[o + 1] = dv[o + 1] * damp - G * .06 * dt;
+    dp[o] += (dv[o] + wind) * dt; dp[o + 1] = Math.max(hAt(dp[o], Math.min(-.5, dp[o + 2])) + 1.5, dp[o + 1] + dv[o + 1] * dt); dp[o + 2] += dv[o + 2] * dt;
+    const q = age / sim.dLife[i], fade = Math.min(1, age / .5) * Math.pow(1 - q, 1.3), y = Math.max(0, 1 - age / 12);
+    // fresh spoil is near-black brown; it pales to grey-brown dust as it thins and spreads
+    dt2[o] = aged[0] + (young0[0] - aged[0]) * y; dt2[o + 1] = aged[1] + (young0[1] - aged[1]) * y; dt2[o + 2] = aged[2] + (young0[2] - aged[2]) * y;
+    if (S.night) { const glow = Math.exp(-age / 2.2) * Math.max(0, 1 - (dp[o + 1] - hAt(chamber.x, -.5)) / (M.plume * 1.1 + 1)); dt2[o] += .42 * glow; dt2[o + 1] += .16 * glow; dt2[o + 2] += .04 * glow; }   // lit from below by the flame at 03:10
+    da[i] = (.5 + .25 * y) * fade; ds[i] = Math.min(110, sim.dSize[i] * (1 + age / 4)); drt[i] += sim.dSpin[i] * dt;
+  }
+  dg.position.needsUpdate = dg.tint.needsUpdate = dg.alpha.needsUpdate = dg.psize.needsUpdate = dg.rot.needsUpdate = true;
+  // underground cavity glow in camouflet case
+}
+
+/* ================= Labels ================= */
+const labelDefs = [];
+function defineLabels() {
+  const U = under.userData;
+  const M = blastModel();
+  labelDefs.length = 0;
+  const L = (text, fn, cls = '') => labelDefs.push({ text, fn, cls });
+  L('German front line', () => [XGF, surface0(XGF, -30) + 3, -30]);
+  L('German support line', () => [XGS, surface0(XGS, -30) + 3, -30]);
+  L("No man's land", () => [(XBF + XGF) / 2 - 10, surface0((XBF + XGF) / 2, -40) + 2.5, -40]);
+  L('British front line', () => [XBF, surface0(XBF, -30) + 3, -30]);
+  L('Site of Spanbroek windmill', () => [XC + 16, surface0(XC + 16, -70) + 3, -70]);
+  L('British shaft: steel tubbing through the wet sand', () => [XS, U.ysh + 7, 0], 'u');
+  L(`Gallery in the blue clay (~${GALLERY} m)`, () => [(XS + XC) / 2, U.yShaftBottom + 3.5, 0], 'u');
+  L('Tamping: ~30 m of sandbags', () => [XC - 22, U.yc + 2.4, 0], 'u');
+  L(`Charge: ${S.charge.toFixed(1)} t ammonal`, () => [XC + 2, U.yc - .6, 0], 'u hot');
+  L('German counter-mine gallery (shallower)', () => [XGF - 8, U.gy(XGF - 8) + 2.2, 0], 'u');
+  L('Sand and silt', () => [XC + 90, surface0(XC + 90, 0) - 3.5, 0], 'u');
+  L('Water-bearing sand', () => [XC + 90, (Math.min(surface0(XC + 90, 0) - 2.6, 4.5) + clayTop(XC + 90)) / 2, 0], 'u');
+  L('Blue clay (Ieper clay)', () => [XC + 90, clayTop(XC + 90) - 8, 0], 'u');
+  L('Crater', () => sim && sim.t > sim.M.vent + 3 && !sim.M.camouflet ? [XC, surface0(XC, -sim.M.R * .45) - sim.M.D * .4, -sim.M.R * .45] : null, 'hot');
+  const box = $('labels'); box.replaceChildren();
+  labelDefs.forEach(l => { const e = document.createElement('div'); e.className = 'lab ' + l.cls; e.textContent = l.text; box.appendChild(e); l.el = e; });
+}
+const v3 = new THREE.Vector3();
+function placeLabels() {
+  const w = renderer.domElement.clientWidth, h = renderer.domElement.clientHeight;
+  const panelLeft = w > 760 ? w - 320 : Infinity;
+  const cand = [];
+  for (const l of labelDefs) {
+    const p = S.labels ? l.fn() : null;
+    l.el.style.display = 'none';
+    if (!p) continue;
+    v3.set(p[0], p[1], p[2]); const dist = camera.position.distanceTo(v3);
+    if (l.cls.includes('u') && (camera.position.z - p[2]) / dist < .35) continue;   // underground labels only when facing the cut face
+    v3.project(camera);
+    if (v3.z >= 1 || Math.abs(v3.x) > 1 || Math.abs(v3.y) > 1 || dist > 900) continue;
+    const sx = (v3.x + 1) / 2 * w, sy = (1 - v3.y) / 2 * h;
+    if (sx > panelLeft - 20) continue;                                // never under the control panel
+    cand.push({ l, sx, sy, dist });
+  }
+  cand.sort((a, b) => (b.l.cls.includes('hot') - a.l.cls.includes('hot')) || a.dist - b.dist);
+  const placed = [];
+  for (const c of cand) {
+    const wd = c.l.text.length * 6.6 + 14, box = [c.sx - wd / 2, c.sy - 24, c.sx + wd / 2, c.sy];
+    if (placed.some(b => box[0] < b[2] && box[2] > b[0] && box[1] < b[3] && box[3] > b[1])) continue;   // declutter: nearer label wins
+    placed.push(box);
+    c.l.el.style.display = ''; c.l.el.style.left = c.sx + 'px'; c.l.el.style.top = c.sy + 'px'; c.l.el.style.opacity = c.dist > 500 ? .6 : 1;
+  }
+}
+
+/* ================= Camera ================= */
+const CAMS = {
+  // targets sit right of the subject so it stays clear of the control panel on wide screens
+  section: () => ({ p: [XC - 55, 16, 150], t: [XC - 5, -10, 0] }),
+  chamber: () => ({ p: [XC - 6, chamber.y + 4, 30], t: [XC + 8, chamber.y + 1, 0] }),
+  shaft: () => ({ p: [XS + 22, surface0(XS, 0) + 4, 46], t: [XS + 18, surface0(XS, 0) - 14, 0] }),
+  trench: () => ({ p: [XBF - 6, surface0(XBF - 6, -60) + 2.2, -60], t: [XC + 40, 55, -10] }),
+  overview: () => ({ p: [XC - 300, 210, 360], t: [XC - 110, -12, -60] }),
+  aerial: () => ({ p: [XC - 20, 520, 80], t: [XC + 20, 0, -90] })
+};
+let camTween = null;
+function goCam(name, instant = false) {
+  const c = CAMS[name]();
+  if (instant) { camTween = null; camera.position.set(...c.p); controls.target.set(...c.t); controls.update(); return; } camTween = { from: camera.position.clone(), fromT: controls.target.clone(), to: new THREE.Vector3(...c.p), toT: new THREE.Vector3(...c.t), k: 0 };
+}
+
+/* ================= UI ================= */
+function fmtW() { const lb = Math.round(S.charge * 2204.62 / 100) * 100; return `${S.charge.toFixed(1)} t · ${lb.toLocaleString()} lb`; }
+function renderResults() {
+  const M = blastModel(), P = PRESETS[S.preset];
+  const rows = [
+    ['Scaled depth', `${M.lam.toFixed(2)} m/kg^⅓`],
+    M.camouflet ? ['Crater', 'none (camouflet)'] : ['Crater (model)', `${(2 * M.R).toFixed(0)} m wide · ${M.D.toFixed(0)} m deep`],
+    ['Debris column', M.camouflet ? 'stays underground' : `~${Math.round(M.plume / 10) * 10} m high`],
+    ['Shock reaches surface', `${(M.shockUp * 1000).toFixed(0)} ms`]
+  ];
+  let note = M.camouflet ? 'Too deep for the charge size: the blast crushes an underground cavity (a camouflet) instead of making a crater.'
+    : M.lam < .45 ? 'Shallow charge: much of the energy vents into the air, making a wide, shallow crater.'
+    : M.lam < 1.2 ? 'Close to the most efficient depth for making a crater, which is what the tunnellers aimed for.'
+    : 'Deep charge: a narrower crater and a lower column, with more energy absorbed by the clay.';
+  if (P && Math.abs(S.charge - P.t) < .05 && Math.abs(S.depth - P.d) < .05) note = P.note + ' ' + note;
+  $('results').innerHTML = rows.map(([k, v]) => `<div class="row"><span>${k}</span><b>${v}</b></div>`).join('') +
+    `<div class="note">${note}</div>
+     <details><summary>How the numbers are worked out</summary>Crater size uses the scaled depth of burial, λ = depth ÷ (charge in kg)^⅓, a standard way to compare buried explosions. Crater radius ≈ 1.15 × W^⅓ × e^(−(λ−0.8)²/0.72); apparent depth ≈ 0.33 × radius; beyond λ ≈ 1.9 no crater forms. The stress wave climbs through wet clay at about 1.8 km/s; debris falls under gravity with air drag. It is an educational estimate, tuned so Spanbroekmolen comes out close to the real Pool of Peace.</details>`;
+  $('sub').textContent = `${S.preset === 'custom' ? 'Custom mine' : PRESETS[S.preset].name}, Messines Ridge, Belgium · fired 03:10, 7 June 1917`;
+}
+function syncInputs() {
+  $('preset').value = S.preset; $('charge').value = S.charge; $('depth').value = S.depth; $('speed').value = S.speedLog;
+  $('chargeOut').textContent = fmtW(); $('depthOut').textContent = `${S.depth.toFixed(1)} m · ${Math.round(S.depth * 3.281)} ft`;
+  const sp = Math.pow(10, S.speedLog); $('speedOut').textContent = sp >= 1 ? sp.toFixed(1) + '×' : sp >= .1 ? sp.toFixed(2) + '×' : sp.toFixed(3) + '×';
+  document.querySelectorAll('#detail button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === S.detail)));
+}
+function mineChanged() { if (sim) resetSim(); buildUnderground(); defineLabels(); renderResults(); syncInputs(); }
+$('preset').addEventListener('change', e => { S.preset = e.target.value; if (PRESETS[S.preset]) { S.charge = PRESETS[S.preset].t; S.depth = PRESETS[S.preset].d; } mineChanged(); });
+$('charge').addEventListener('input', e => { if (sim) resetSim(); S.charge = +e.target.value; S.preset = 'custom'; syncInputs(); renderResults(); defineLabels(); });
+$('charge').addEventListener('change', mineChanged);
+$('depth').addEventListener('input', e => { if (sim) resetSim(); S.depth = +e.target.value; S.preset = 'custom'; syncInputs(); renderResults(); });
+$('depth').addEventListener('change', mineChanged);
+$('speed').addEventListener('input', e => { S.speedLog = +e.target.value; syncInputs(); });
+document.querySelectorAll('#detail button').forEach(b => b.addEventListener('click', () => { if (S.detail === b.dataset.v) return; S.detail = b.dataset.v; rebuildAll(); }));
+[['slowmo'], ['shake'], ['dust'], ['waves'], ['labelsOn', 'labels'], ['sound'], ['glow'], ['night']].forEach(([id, key]) => {
+  key = key || id; const el = $(id); el.checked = S[key];
+  el.addEventListener('change', () => { S[key] = el.checked; if (key === 'glow') glowLines.forEach(l => l.visible = S.glow); if (key === 'night') { applyLighting(); features.children.forEach(c => { if (c.userData.isWire) c.material.color.set(S.night ? 0x1C1B19 : 0x4A4640); }); } if (key === 'dust' && dust) dust.visible = S.dust && !!sim; if (key === 'night' && sim) { const c = ejecta.geometry.attributes.color; for (let i = 0; i < c.array.length; i++) c.array[i] *= S.night ? .38 : 1 / .38; c.needsUpdate = true; } });
+});
+$('fire').addEventListener('click', detonate);
+$('reset').addEventListener('click', resetSim);
+document.querySelectorAll('#cams button').forEach(b => b.addEventListener('click', () => goCam(b.dataset.cam)));
+$('camH').addEventListener('input', e => { camTween = null; camera.position.y = +e.target.value; $('camHOut').textContent = `${Math.round(camera.position.y)} m`; });
+$('toggle').addEventListener('click', () => { const p = $('panel'), closed = p.classList.toggle('closed'); $('toggle').textContent = closed ? 'Show' : 'Hide'; $('toggle').setAttribute('aria-expanded', String(!closed)); });
+addEventListener('keydown', e => { if (/INPUT|SELECT|BUTTON|SUMMARY/.test(e.target.tagName)) return; if (e.key === ' ') { e.preventDefault(); sim ? resetSim() : detonate(); } });
+
+function rebuildAll() {
+  sim = null; $('loading').hidden = false; $('loading').textContent = 'Rebuilding at ' + S.detail + ' detail…';
+  syncInputs();
+  setTimeout(() => {
+    renderer.shadowMap.enabled = DETAIL[S.detail].shadows; sun.castShadow = DETAIL[S.detail].shadows;
+    buildTerrain(); buildFaces(); buildFeatures(); buildUnderground(); buildParticles(); defineLabels(); renderResults();
+    scene.traverse(o => { if (o.material) o.material.needsUpdate = true; });
+    clearEffects(); $('fire').disabled = false; $('tclock').textContent = 't = 0.000 s'; $('stage').textContent = 'Ready. Press Detonate.';
+    $('loading').hidden = true;
+  }, 30);
+}
+function resize() { const w = innerWidth, h = innerHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+addEventListener('resize', resize);
+
+/* ================= Main loop ================= */
+let last = performance.now(), shakeT = 0;
+function frame(now) {
+  const dt = Math.min(.1, (now - last) / 1000); last = now;
+  if (camTween) {
+    camTween.k = Math.min(1, camTween.k + dt * 1.1); const e = ease(camTween.k);
+    camera.position.lerpVectors(camTween.from, camTween.to, e); controls.target.lerpVectors(camTween.fromT, camTween.toT, e);
+    if (camTween.k >= 1) camTween = null;
+  }
+  controls.update();
+  if (sim) {
+    stepSim(dt);
+    if (sim.needNormals) { terrain.geometry.computeVertexNormals(); updateFace(faceFront); sim.needNormals = false; }
+    const M = sim.M;
+    $('tclock').textContent = `t = ${sim.t < 10 ? sim.t.toFixed(3) : sim.t.toFixed(1)} s`;
+    $('stage').textContent = stageText(sim.t, M);
+  }
+  // camera shake: strongest when the dome bursts, fading over a few seconds
+  let off = null;
+  if (sim && S.shake) {
+    const M = sim.M, k = sim.t < M.shockUp ? 0 : Math.exp(-(sim.t - M.shockUp) * 1.2) * Math.min(1.8, M.cube / 22) * (M.camouflet ? .4 : 1);
+    if (k > .005) { shakeT += dt * 60; off = new THREE.Vector3((vnoise(shakeT, 1) - .5) * k, (vnoise(shakeT, 7) - .5) * k, (vnoise(shakeT, 13) - .5) * k); camera.position.add(off); }
+  }
+  if (document.activeElement !== $('camH')) { $('camH').value = Math.round(camera.position.y); $('camHOut').textContent = `${Math.round(camera.position.y)} m`; }
+  syncSmokeUniforms();
+  renderer.render(scene, camera);
+  placeLabels();
+  if (off) camera.position.sub(off);
+  requestAnimationFrame(frame);
+}
+
+/* ================= Boot ================= */
+resize(); applyLighting();
+renderer.shadowMap.enabled = DETAIL[S.detail].shadows; sun.castShadow = DETAIL[S.detail].shadows;
+buildTerrain(); buildFaces(); buildFeatures(); buildUnderground(); buildParticles();
+defineLabels(); renderResults(); syncInputs();
+const c0 = CAMS.section(); camera.position.set(...c0.p); controls.target.set(...c0.t);
+$('loading').hidden = true;
+requestAnimationFrame(frame);
+window.__mine = { detonate, resetSim, goCam, S, get sim() { return sim; }, parts: () => ({ terrain, faceFront, faceSides, ejecta, fire, dust, fallback, features, under, faceRing }),
+  seek(T) { if (sim && T < sim.t) resetSim(); if (!sim) detonate(); while (sim.t < T) advance(Math.min(.01, T - sim.t + 1e-6)); terrain.geometry.computeVertexNormals(); updateFace(faceFront); } };
+})();
+</script>
