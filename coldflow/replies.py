@@ -3,14 +3,16 @@ from __future__ import annotations
 
 import email
 import imaplib
-import os
 import re
 import sqlite3
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass, field
 from datetime import date, timedelta
 from email.message import Message
 from email.utils import parseaddr
 
+from .auth import imap_login, secret_for
 from .db import suppress
 
 BOUNCE_SENDERS = ("mailer-daemon", "postmaster", "mail-daemon")
@@ -142,36 +144,155 @@ def apply(conn: sqlite3.Connection, inbox_id: int, msg: Message) -> str | None:
     return kind
 
 
-def poll(conn: sqlite3.Connection, days: int = 3, log=print) -> Counter:
-    stats: Counter = Counter()
-    since = (date.today() - timedelta(days=days)).strftime("%d-%b-%Y")
-    for inbox in conn.execute("SELECT * FROM inboxes WHERE status<>'retired'").fetchall():
-        password = os.environ.get(inbox["password_env"])
-        if not password:
-            log(f"skip {inbox['email']}: env var {inbox['password_env']} not set")
-            stats["inbox_no_password"] += 1
-            continue
+HEADER_FIELDS = "FROM SUBJECT MESSAGE-ID CONTENT-TYPE AUTO-SUBMITTED X-AUTOREPLY X-AUTORESPOND"
+UID_RE = re.compile(rb"UID (\d+)")
+
+
+@dataclass
+class Job:
+    inbox_id: int
+    email: str
+    host: str
+    port: int
+    username: str
+    auth: str
+    secret: str
+    since: str
+    uidvalidity: int | None
+    last_uid: int
+    lead_emails: set[str]
+    lead_domains: set[str]
+    deep: bool = False
+
+
+@dataclass
+class Result:
+    job: Job
+    uidvalidity: int | None = None
+    max_uid: int = 0
+    scanned: int = 0
+    messages: list[bytes] = field(default_factory=list)
+    error: str = ""
+
+
+def worth_downloading(headers: Message, job: Job) -> bool:
+    """Header-only triage: a lead (or their company) wrote, or it looks like a bounce.
+    Warmup traffic and everything else is never downloaded."""
+    sender = parseaddr(headers.get("From", ""))[1].lower()
+    if not sender:
+        return False
+    if sender.split("@")[0] in BOUNCE_SENDERS or BOUNCE_SUBJECT.search(headers.get("Subject", "") or ""):
+        return True
+    if "multipart/report" in (headers.get("Content-Type", "") or "").lower():
+        return True
+    return sender in job.lead_emails or sender.rsplit("@", 1)[-1] in job.lead_domains
+
+
+def fetch_inbox(job: Job, imap_factory=imaplib.IMAP4_SSL) -> Result:
+    """Runs in a worker thread: network only, no database access."""
+    res = Result(job=job)
+    try:
+        imap = imap_factory(job.host, job.port)
         try:
-            imap = imaplib.IMAP4_SSL(inbox["imap_host"], int(inbox["imap_port"]))
-            imap.login(inbox["username"], password)
+            imap_login(imap, job.auth, job.username, job.secret)
             imap.select("INBOX", readonly=True)
-            _, data = imap.search(None, "SINCE", since)
-            for num in data[0].split():
-                _, fetched = imap.fetch(num, "(BODY.PEEK[])")
-                raw = next((p[1] for p in fetched if isinstance(p, tuple)), None)
-                if not raw:
-                    continue
+            _, v = imap.response("UIDVALIDITY")
+            res.uidvalidity = int(v[0]) if v and v[0] else None
+            incremental = (not job.deep and job.last_uid and res.uidvalidity is not None
+                           and res.uidvalidity == job.uidvalidity)
+            if incremental:
+                _, data = imap.uid("SEARCH", "UID", f"{job.last_uid + 1}:*")
+            else:
+                _, data = imap.uid("SEARCH", "SINCE", job.since)
+            uids = [int(u) for u in (data[0] or b"").split()]
+            if incremental:
+                uids = [u for u in uids if u > job.last_uid]  # "N:*" always returns the newest message
+            res.scanned = len(uids)
+            prior = job.last_uid if incremental or (job.deep and res.uidvalidity == job.uidvalidity) else 0
+            res.max_uid = max(uids + [prior])
+
+            wanted: list[int] = []
+            for i in range(0, len(uids), 200):
+                chunk = ",".join(str(u) for u in uids[i:i + 200])
+                _, parts = imap.uid("FETCH", chunk, f"(BODY.PEEK[HEADER.FIELDS ({HEADER_FIELDS})])")
+                for part in parts:
+                    if not isinstance(part, tuple):
+                        continue
+                    m = UID_RE.search(part[0])
+                    if m and worth_downloading(email.message_from_bytes(part[1]), job):
+                        wanted.append(int(m.group(1)))
+            for uid in wanted:
+                _, parts = imap.uid("FETCH", str(uid), "(BODY.PEEK[])")
+                raw = next((p[1] for p in parts if isinstance(p, tuple)), None)
+                if raw:
+                    res.messages.append(raw)
+        finally:
+            try:
+                imap.logout()
+            except Exception:
+                pass
+    except Exception as exc:
+        res.error = str(exc) or exc.__class__.__name__
+    return res
+
+
+def _jobs(conn: sqlite3.Connection, settings, days: int, deep: bool, problems: list[str]) -> list[Job]:
+    since = (date.today() - timedelta(days=days)).strftime("%d-%b-%Y")
+    jobs = []
+    for inbox in conn.execute("SELECT * FROM inboxes WHERE status<>'retired' ORDER BY id").fetchall():
+        try:
+            secret = secret_for(inbox, settings)  # main thread: token refreshes write the token file
+        except Exception as exc:
+            problems.append(f"{inbox['email']}: {exc}")
+            continue
+        state = conn.execute("SELECT * FROM imap_state WHERE inbox_id=?", (inbox["id"],)).fetchone()
+        contacted = conn.execute(
+            """SELECT DISTINCT l.email, l.domain FROM sends s JOIN leads l ON l.id=s.lead_id
+               WHERE s.inbox_id=? AND s.status IN ('sent','sending')""", (inbox["id"],)).fetchall()
+        jobs.append(Job(
+            inbox_id=inbox["id"], email=inbox["email"], host=inbox["imap_host"], port=int(inbox["imap_port"]),
+            username=inbox["username"], auth=inbox["auth"] or "password", secret=secret, since=since,
+            uidvalidity=state["uidvalidity"] if state else None, last_uid=state["last_uid"] if state else 0,
+            lead_emails={r["email"] for r in contacted}, lead_domains={r["domain"] for r in contacted}, deep=deep,
+        ))
+    return jobs
+
+
+def poll(conn: sqlite3.Connection, settings, days: int = 3, deep: bool = False, log=print,
+         fetcher=fetch_inbox) -> tuple[Counter, list[str]]:
+    """Sweep every inbox. Normal runs read only mail that arrived since the last sweep;
+    deep=True re-reads the last `days` days (use weekly to catch late bounces)."""
+    stats: Counter = Counter()
+    problems: list[str] = []
+    jobs = _jobs(conn, settings, days, deep, problems)
+    stats["inbox_skipped_no_credentials"] = len(problems)
+    workers = max(1, int(settings["replies"].get("imap_workers", 8)))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = [pool.submit(fetcher, job) for job in jobs]
+        for fut in as_completed(futures):
+            res = fut.result()
+            job = res.job
+            if res.error:
+                stats["inbox_errors"] += 1
+                problems.append(f"{job.email}: IMAP {res.error}")
+                log(f"IMAP error on {job.email}: {res.error}")
+                continue
+            stats["inboxes_checked"] += 1
+            stats["messages_scanned"] += res.scanned
+            stats["messages_downloaded"] += len(res.messages)
+            for raw in res.messages:
                 msg = email.message_from_bytes(raw)
-                sender = parseaddr(msg.get("From", ""))[1].lower()
-                if sender == inbox["email"]:
+                if parseaddr(msg.get("From", ""))[1].lower() == job.email:
                     continue
-                kind = apply(conn, inbox["id"], msg)
+                kind = apply(conn, job.inbox_id, msg)
                 if kind:
                     stats[kind] += 1
-            imap.logout()
-            stats["inboxes_checked"] += 1
-        except Exception as exc:
-            log(f"IMAP error on {inbox['email']}: {exc}")
-            stats["inbox_errors"] += 1
-    return stats
-
+            if res.uidvalidity is not None:
+                conn.execute(
+                    """INSERT INTO imap_state (inbox_id, uidvalidity, last_uid, checked_at)
+                       VALUES (?,?,?,datetime('now'))
+                       ON CONFLICT(inbox_id) DO UPDATE SET uidvalidity=excluded.uidvalidity,
+                         last_uid=excluded.last_uid, checked_at=excluded.checked_at""",
+                    (job.inbox_id, res.uidvalidity, res.max_uid))
+                conn.commit()
+    return stats, problems

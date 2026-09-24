@@ -18,6 +18,28 @@ max_delay_seconds = 360
 max_per_company_domain_per_day = 2    # don't hit 10 people at one company on the same day
 new_lead_share = 0.6                  # max share of an inbox's daily cap used on first-touch emails
 unsubscribe_line = "Not the right fit? Reply \"no thanks\" and I won't reach out again."
+smtp_reuse_seconds = 240              # reuse an inbox's SMTP session if used within this many seconds
+max_attempts = 3                      # temporary send errors are retried on later runs, then given up
+
+[replies]
+imap_workers = 8                      # inboxes checked in parallel
+
+[oauth_microsoft]
+# Needed for Microsoft 365 / Exchange Online inboxes (auth = "oauth"). Create an app registration
+# in Entra ID (see playbook/02_infrastructure_setup.md), then run: python -m coldflow auth login
+client_id = ""
+tenant = "organizations"              # or your tenant ID / domain
+
+[alerts]
+# Daily summary + warnings after `daily`. Set either or both.
+webhook_url = ""                      # Slack or Discord incoming webhook URL
+email_to = ""                         # where to email the summary
+smtp_host = "smtp.gmail.com"          # the account used to SEND alerts: use your main mailbox, not a cold inbox
+smtp_port = 587
+smtp_username = ""
+smtp_password_env = "CF_ALERT_PASSWORD"
+only_on_warnings = false              # true = stay quiet on good days
+lead_supply_days = 3                  # warn when fewer enrolled leads than this many days of capacity
 
 [warmup]
 warmup_only_days = 14                 # days of warmup-only before any cold email
@@ -41,3 +63,4 @@ check_mx = false                      # true = look up MX on import (needs dnspy
 db = "data/coldflow.db"
 outbox = "data/outbox"                # dry-run .eml files
 reports = "reports"
+tokens = "data/tokens.json"           # Microsoft OAuth refresh tokens (kept at file mode 600)

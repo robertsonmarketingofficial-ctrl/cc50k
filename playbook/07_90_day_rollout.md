@@ -6,13 +6,17 @@ Phase 1 target: **50,000 emails a month by week 5.** Phase 2 (50k/week) is a dec
 
 - [ ] Choose 1-2 niches and fill the `[[ONE-LINE PROOF]]` slots in their campaign files
 - [ ] Buy **31 domains**; forward each to the main site; log them in `domain_tracker.csv`
-- [ ] Create **92 inboxes** (3 per domain), names and photos; app passwords
+- [ ] Create **92 inboxes** (3 per domain), about half Exchange Online across 2 tenants and half
+      reseller Google ([09](09_cheapest_setup.md)); names and photos; app passwords for Google
 - [ ] DNS: MX, SPF, DKIM, DMARC on all 31 domains; `dns-check` passes; mail-tester ≥ 9/10
-- [ ] Connect all inboxes to a warmup service and start warmup. **Record the date**, since it's
+- [ ] Connect all inboxes to Instantly Growth (warmup only) and start warmup. **Record the date**, since it's
       each inbox's `warmup_start`
 - [ ] Install `coldflow` on an always-on machine (small VPS or office PC), `init`, fill in
       `coldflow.toml` (company name, postal address, timezone)
-- [ ] `inboxes import`; put the passwords in a private `.env` (see `scripts/env.example`)
+- [ ] `inboxes import`; Google passwords in a private `.env` (see `scripts/env.example`);
+      Microsoft OAuth app + `auth login` ([02](02_infrastructure_setup.md#microsoft-oauth-one-time-setup));
+      `auth status` all ok
+- [ ] `[alerts]` webhook or email set; `alert-test` arrives
 - [ ] Load the do-not-contact list
 
 ## Weeks 1-2: warm up and prepare leads

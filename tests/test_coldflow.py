@@ -149,7 +149,7 @@ class FlowTests(Fixture):
         self.assertTrue(msg["List-Unsubscribe"].startswith("<mailto:"))
 
         # Simulate live sends without SMTP.
-        self.enterContext(mock.patch.object(sender, "_smtp_send"))
+        self.enterContext(mock.patch.object(sender, "_connect", return_value=mock.MagicMock()))
         stats = sender.run(self.conn, MONDAY, self.settings, live=True, ignore_window=True, log=lambda *_: None)
         self.assertEqual(stats["sent"], 3)
         enr = self.conn.execute("SELECT * FROM enrollments ORDER BY id").fetchall()

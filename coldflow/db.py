@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS inboxes (
     imap_port INTEGER NOT NULL DEFAULT 993,
     username TEXT NOT NULL,
     password_env TEXT NOT NULL,      -- name of env var holding the app password
+    auth TEXT NOT NULL DEFAULT 'password',  -- 'password' (app password) | 'oauth' (Microsoft XOAUTH2)
     daily_cap INTEGER NOT NULL DEFAULT 30,
     warmup_start TEXT NOT NULL,      -- ISO date warmup began
     status TEXT NOT NULL DEFAULT 'active',
@@ -80,7 +81,8 @@ CREATE TABLE IF NOT EXISTS sends (
     step INTEGER NOT NULL,
     variant INTEGER NOT NULL DEFAULT 0,
     scheduled_for TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'queued',      -- queued|sent|failed|skipped
+    status TEXT NOT NULL DEFAULT 'queued',      -- queued|sending|sent|failed|skipped
+    attempts INTEGER NOT NULL DEFAULT 0,
     subject TEXT DEFAULT '',
     message_id TEXT DEFAULT '',
     error TEXT DEFAULT '',
@@ -88,6 +90,14 @@ CREATE TABLE IF NOT EXISTS sends (
     UNIQUE (enrollment_id, step)
 );
 CREATE INDEX IF NOT EXISTS idx_sends_day ON sends(scheduled_for, status);
+
+-- Where each inbox's IMAP sweep left off, so only new mail is read.
+CREATE TABLE IF NOT EXISTS imap_state (
+    inbox_id INTEGER PRIMARY KEY REFERENCES inboxes(id),
+    uidvalidity INTEGER NOT NULL,
+    last_uid INTEGER NOT NULL,
+    checked_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 
 CREATE TABLE IF NOT EXISTS events (
     id INTEGER PRIMARY KEY,
@@ -111,7 +121,23 @@ def connect(path: str | Path) -> sqlite3.Connection:
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA journal_mode = WAL")
     conn.executescript(SCHEMA)
+    _migrate(conn)
     return conn
+
+
+# Columns added after v1.0; older databases get them on first connect.
+MIGRATIONS = [
+    ("inboxes", "auth", "TEXT NOT NULL DEFAULT 'password'"),
+    ("sends", "attempts", "INTEGER NOT NULL DEFAULT 0"),
+]
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    for table, column, decl in MIGRATIONS:
+        cols = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
+        if column not in cols:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
+    conn.commit()
 
 
 def is_suppressed(conn: sqlite3.Connection, email: str) -> bool:

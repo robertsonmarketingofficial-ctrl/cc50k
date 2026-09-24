@@ -33,9 +33,22 @@ IMAP ──replies──► events (reply / interested / not_interested / unsubs
 - **Send** interleaves inboxes with a random 2-6 minute gap per inbox. Right before each email it
   re-checks that the lead hasn't replied or opted out. It stops at `window_end`, and whatever is
   left rolls over to the next day.
-- **Replies** reads the last 3 days of each inbox (read-only, messages aren't marked read),
-  classifies each message, and ignores warmup traffic from non-leads. A reply from a colleague at
-  the same company counts as a reply for that company.
+  - **Connection reuse:** each inbox keeps its SMTP session open between emails for up to
+    `smtp_reuse_seconds` (240) and reconnects when the server has dropped it. With 2-6 minute gaps,
+    many emails skip a new TLS handshake and login; the daily summary shows the login count.
+  - **Crash safety:** an email is marked `sending` (with its Message-ID) before it goes out. If the
+    process dies there, the next run marks it sent and moves the sequence on, rather than risk a
+    duplicate.
+  - **Failures:** a refused recipient (550) is treated as a hard bounce and suppressed. Temporary
+    errors stay queued and are retried on later runs, up to `max_attempts` (3). Sign-in failures
+    keep the inbox's queue intact without using up attempts.
+- **Replies** checks up to 8 inboxes in parallel (`imap_workers`), read-only.
+  - **Only new mail:** it remembers the last message it saw in each inbox, so each sweep reads only
+    what arrived since. If the mailbox is rebuilt it falls back to the last 3 days.
+  - **Headers first:** it downloads headers and fetches the full message only when it's from a lead
+    that inbox emailed (or their company) or is a bounce notice. Warmup traffic is never downloaded.
+  - `replies --deep --days 14` re-reads two weeks to catch late bounces (weekly cron).
+  - A reply from a colleague at the same company counts as a reply for that company.
 
 ## Commands
 
@@ -56,12 +69,15 @@ IMAP ──replies──► events (reply / interested / not_interested / unsubs
 | `campaign pause\|resume NAME` / `campaign list` | |
 | `schedule [--date]` | Build the day's queue |
 | `send [--date] [--live] [--limit N] [--ignore-window]` | Dry run writes `.eml` files; `--live` sends |
-| `replies [--days 3]` | IMAP sweep + health check |
+| `replies [--deep] [--days 3]` | IMAP sweep (new mail only; `--deep` re-reads `--days`) + health check |
+| `auth login [--email X]` | Microsoft OAuth sign-in (all OAuth inboxes without a token, or one) |
+| `auth status` | Check every inbox can sign in (password set / token valid) |
+| `alert-test` | Send today's summary to the configured webhook/email |
 | `health` | Auto-pause inboxes over bounce/opt-out limits |
 | `status` / `dashboard [--out]` | Terminal summary / HTML dashboard |
 | `export [--interested-only] [--out]` | Replies CSV for your CRM |
 | `dns-check [domains…]` | MX/SPF/DKIM/DMARC check |
-| `daily [--live]` | replies → schedule → send → dashboard |
+| `daily [--live]` | replies → schedule → send → dashboard → summary alert (sent even if a step crashes) |
 
 Use `--config path/to/other.toml` to run a second, separate instance (for example, one per machine
 at Phase 2 scale).
@@ -69,13 +85,17 @@ at Phase 2 scale).
 ## Inbox CSV
 
 ```
-email,from_name,provider,password_env,daily_cap,warmup_start
-alex@getacme-media.com,Alex Robertson,google,,30,2026-10-01
+email,from_name,provider,auth,password_env,daily_cap,warmup_start
+alex@getacme-media.com,Alex Robertson,google,password,,30,2026-10-01
+alex@tryacmemedia.com,Alex Robertson,microsoft,oauth,,30,2026-10-01
 ```
+
+- `auth`: `password` (app password in an env var) or `oauth` (Microsoft; default for
+  `provider=microsoft`). See [02 Infrastructure](02_infrastructure_setup.md#microsoft-oauth-one-time-setup).
 
 - `provider`: `google`, `microsoft` or `zoho` sets the SMTP/IMAP hosts. Custom hosts can go in
   `smtp_host,smtp_port,imap_host,imap_port`.
-- `password_env` blank → `CF_PW_<EMAIL>` (see `inboxes env`).
+- `password_env` blank → `CF_PW_<EMAIL>` (see `inboxes env`). Not used for OAuth inboxes.
 
 ## Campaign file
 
@@ -106,6 +126,8 @@ Set `new_thread = true` on a step to start a fresh thread (it then needs its own
 - [ ] `campaign preview` read for 10+ random leads
 - [ ] Dry-run `.eml` files read
 - [ ] `send --live --limit 10` sent to real leads, and you checked the Sent folder of those inboxes
+- [ ] `auth status` shows every inbox "ok"
+- [ ] `alert-test` arrives in Slack/email
 - [ ] Cron installed; `replies` runs at least 3 times a day
 - [ ] Database backed up nightly (`data/coldflow.db`)
 
@@ -113,5 +135,9 @@ Set `new_thread = true` on a step to start a fresh thread (it then needs its own
 
 - Reply classification uses keyword rules. Skim "reply" and "not_interested" events in the
   dashboard; nothing is ever auto-answered.
-- Bounces that arrive more than 3 days late are missed unless you run `replies --days 14` weekly.
-- The software controls cold volume, not warmup. Use a warmup service alongside it.
+- The software controls cold volume, not warmup. Use a warmup service alongside it (cheapest:
+  Instantly Growth, see [09](09_cheapest_setup.md)).
+- Google inboxes still use app passwords. If your Workspace admin (or reseller) disables them,
+  those inboxes need a hosted sender, or Google OAuth added to coldflow.
+- Nothing checks inbox placement (spam vs inbox). Send a weekly test to seed accounts you own on
+  Gmail and Outlook.

@@ -15,6 +15,7 @@ to book sales calls for the agency.
 | 06 | [Daily and weekly operations](06_operations_sop.md) | The routine, reply handling, KPIs, what to do when numbers drop |
 | 07 | [90-day rollout](07_90_day_rollout.md) | Week-by-week plan from zero to full volume |
 | 08 | [Software guide](08_software_guide.md) | Every `coldflow` command and how the pieces fit |
+| 09 | [Cheapest setup](09_cheapest_setup.md) | The ~$700/month way to run 50k/month, and what you trade for it |
 
 ## The whole system on one page
 
@@ -40,9 +41,10 @@ to book sales calls for the agency.
 
 ## Decisions made for you (change them if you disagree)
 
-- **Sending method:** your own Google Workspace and Microsoft 365 inboxes on secondary domains,
-  rotated by `coldflow`. It's the cheapest option at this volume and you control it. ESPs such as
-  SES, SendGrid and Mailchimp prohibit cold email and will shut the account down.
+- **Sending method (lean stack, ~$700/month):** about half Microsoft Exchange Online ($4) and half
+  reseller Google Workspace (~$3-3.90) inboxes on secondary domains. `coldflow` sends and rotates
+  (Microsoft via OAuth), and Instantly's $47 Growth plan does warmup only. ESPs such as SES,
+  SendGrid and Mailchimp prohibit cold email and will shut the account down.
 - **Per-inbox volume:** 30 cold emails a day. Going higher is where most setups burn out.
 - **Sequence:** 3 emails over about 8 days, plain text, no links in email 1. 50k emails means
   about 16.7k new leads a month.

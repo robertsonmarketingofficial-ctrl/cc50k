@@ -14,8 +14,11 @@ PROVIDER_DEFAULTS = {
 
 
 def import_csv(conn: sqlite3.Connection, path: str | Path, default_cap: int) -> int:
-    """Columns: email, from_name, provider, password_env, [daily_cap, warmup_start,
-    smtp_host, smtp_port, imap_host, imap_port, username]."""
+    """Columns: email, from_name, provider, password_env, [auth, daily_cap, warmup_start,
+    smtp_host, smtp_port, imap_host, imap_port, username].
+
+    auth: 'password' (app password in an env var) or 'oauth' (Microsoft; run `auth login`).
+    Microsoft inboxes default to oauth."""
     count = 0
     with open(path, newline="", encoding="utf-8-sig") as fh:
         for row in csv.DictReader(fh):
@@ -23,15 +26,18 @@ def import_csv(conn: sqlite3.Connection, path: str | Path, default_cap: int) -> 
             email = row["email"].lower()
             provider = row.get("provider", "google").lower() or "google"
             smtp_h, smtp_p, imap_h, imap_p = PROVIDER_DEFAULTS.get(provider, PROVIDER_DEFAULTS["google"])
+            auth = (row.get("auth") or ("oauth" if provider == "microsoft" else "password")).lower()
+            if auth not in ("password", "oauth"):
+                raise ValueError(f"{email}: auth must be 'password' or 'oauth'")
             conn.execute(
                 """INSERT INTO inboxes (email, from_name, domain, provider, smtp_host, smtp_port,
-                       imap_host, imap_port, username, password_env, daily_cap, warmup_start)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+                       imap_host, imap_port, username, password_env, auth, daily_cap, warmup_start)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
                    ON CONFLICT(email) DO UPDATE SET
                        from_name=excluded.from_name, provider=excluded.provider,
                        smtp_host=excluded.smtp_host, smtp_port=excluded.smtp_port,
                        imap_host=excluded.imap_host, imap_port=excluded.imap_port,
-                       username=excluded.username, password_env=excluded.password_env,
+                       username=excluded.username, password_env=excluded.password_env, auth=excluded.auth,
                        daily_cap=excluded.daily_cap, warmup_start=excluded.warmup_start""",
                 (
                     email,
@@ -44,6 +50,7 @@ def import_csv(conn: sqlite3.Connection, path: str | Path, default_cap: int) -> 
                     int(row.get("imap_port") or imap_p),
                     row.get("username") or email,
                     row.get("password_env") or env_name_for(email),
+                    auth,
                     int(row.get("daily_cap") or default_cap),
                     row.get("warmup_start") or date.today().isoformat(),
                 ),

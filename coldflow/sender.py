@@ -1,7 +1,6 @@
 """Sends the queued emails over SMTP, spaced out per inbox. Dry-run by default."""
 from __future__ import annotations
 
-import os
 import random
 import smtplib
 import sqlite3
@@ -12,8 +11,9 @@ from email.message import EmailMessage
 from email.utils import formataddr, format_datetime, make_msgid
 from pathlib import Path
 
+from .auth import AuthError, secret_for, smtp_login
 from .campaigns import Campaign, load_campaign
-from .db import is_suppressed
+from .db import is_suppressed, suppress
 from .scheduler import next_sending_day
 from .templates import lead_context, missing_fields, render
 
@@ -74,32 +74,75 @@ def compose(send: sqlite3.Row, enr: sqlite3.Row, lead: sqlite3.Row, inbox: sqlit
     return msg, variant_idx, ""
 
 
-def _smtp_send(inbox: sqlite3.Row, msg: EmailMessage) -> None:
-    password = os.environ.get(inbox["password_env"])
-    if not password:
-        raise RuntimeError(f"env var {inbox['password_env']} is not set")
+def _connect(inbox: sqlite3.Row, settings) -> smtplib.SMTP:
+    secret = secret_for(inbox, settings)
     if int(inbox["smtp_port"]) == 465:
         server: smtplib.SMTP = smtplib.SMTP_SSL(inbox["smtp_host"], 465, timeout=30)
     else:
         server = smtplib.SMTP(inbox["smtp_host"], int(inbox["smtp_port"]), timeout=30)
         server.starttls()
     try:
-        server.login(inbox["username"], password)
-        server.send_message(msg)
-    finally:
+        smtp_login(server, inbox, secret)
+    except Exception:
+        _quit(server)
+        raise
+    return server
+
+
+def _quit(server) -> None:
+    try:
+        server.quit()
+    except Exception:
+        pass
+
+
+class SmtpPool:
+    """Keeps one SMTP session per inbox and reuses it while it's younger than `reuse_seconds`
+    since last use, so most emails don't need a fresh TLS handshake and login."""
+
+    def __init__(self, settings):
+        self.settings = settings
+        self.reuse_seconds = float(settings["sending"].get("smtp_reuse_seconds", 240))
+        self.conns: dict[int, tuple[smtplib.SMTP, float]] = {}
+        self.logins = 0
+
+    def send(self, inbox: sqlite3.Row, msg: EmailMessage) -> None:
+        entry = self.conns.pop(inbox["id"], None)
+        if entry:
+            server, last = entry
+            if time.time() - last < self.reuse_seconds:
+                try:
+                    server.send_message(msg)
+                    self.conns[inbox["id"]] = (server, time.time())
+                    return
+                except (smtplib.SMTPServerDisconnected, ConnectionError, OSError):
+                    pass  # stale session: the message wasn't accepted, send on a fresh one
+                except Exception:
+                    _quit(server)
+                    raise
+            _quit(server)
+        server = _connect(inbox, self.settings)
+        self.logins += 1
         try:
-            server.quit()
+            server.send_message(msg)
         except Exception:
-            pass
+            _quit(server)
+            raise
+        self.conns[inbox["id"]] = (server, time.time())
+
+    def close(self) -> None:
+        for server, _ in self.conns.values():
+            _quit(server)
+        self.conns.clear()
 
 
-def _advance(conn: sqlite3.Connection, enr: sqlite3.Row, camp: Campaign, msg: EmailMessage,
+def _advance(conn: sqlite3.Connection, enr: sqlite3.Row, camp: Campaign, message_id: str, subject: str,
              sent_on: date, settings: dict) -> None:
     step = enr["step"]
     if step == 0:
         conn.execute(
             "UPDATE enrollments SET thread_message_id=?, thread_subject=? WHERE id=?",
-            (msg["Message-ID"], msg["Subject"], enr["id"]),
+            (message_id, subject, enr["id"]),
         )
     nxt = step + 1
     if nxt >= len(camp.steps):
@@ -111,12 +154,61 @@ def _advance(conn: sqlite3.Connection, enr: sqlite3.Row, camp: Campaign, msg: Em
         conn.execute("UPDATE enrollments SET step=?, next_send_date=? WHERE id=?", (nxt, when.isoformat(), enr["id"]))
 
 
+def _campaign(conn, cache: dict, campaign_id: int) -> Campaign:
+    if campaign_id not in cache:
+        cache[campaign_id] = load_campaign(
+            conn.execute("SELECT file FROM campaigns WHERE id=?", (campaign_id,)).fetchone()["file"])
+    return cache[campaign_id]
+
+
+def recover_interrupted(conn: sqlite3.Connection, settings, log=print) -> int:
+    """A send left in 'sending' means the process died mid-send. The email may have gone out,
+    so treat it as sent (never risk a duplicate) and move the sequence on."""
+    cache: dict[int, Campaign] = {}
+    rows = conn.execute("SELECT * FROM sends WHERE status='sending'").fetchall()
+    for s in rows:
+        enr = conn.execute("SELECT * FROM enrollments WHERE id=?", (s["enrollment_id"],)).fetchone()
+        conn.execute("UPDATE sends SET status='sent', sent_at=datetime('now'), error='interrupted mid-send; assumed sent'"
+                     " WHERE id=?", (s["id"],))
+        if enr["status"] == "active" and enr["step"] == s["step"]:
+            _advance(conn, enr, _campaign(conn, cache, enr["campaign_id"]), s["message_id"], s["subject"],
+                     date.fromisoformat(s["scheduled_for"]), settings)
+        log(f"recovered interrupted send #{s['id']} (assumed sent)")
+    conn.commit()
+    return len(rows)
+
+
+def _record_failure(conn: sqlite3.Connection, send: sqlite3.Row, enr: sqlite3.Row, lead: sqlite3.Row,
+                    exc: Exception, max_attempts: int) -> str:
+    """Returns 'rejected' (bad address), 'auth' / 'retry' (stays queued) or 'failed' (gave up)."""
+    err = str(exc)[:500]
+    if isinstance(exc, (smtplib.SMTPAuthenticationError, AuthError)):
+        # The inbox's problem, not the lead's: keep it queued without using up an attempt.
+        conn.execute("UPDATE sends SET status='queued', error=? WHERE id=?", (err, send["id"]))
+        return "auth"
+    if isinstance(exc, smtplib.SMTPRecipientsRefused):
+        conn.execute("UPDATE sends SET status='failed', error=? WHERE id=?", (err, send["id"]))
+        conn.execute("UPDATE enrollments SET status='bounced' WHERE id=?", (enr["id"],))
+        conn.execute("UPDATE leads SET status='bounced' WHERE id=?", (lead["id"],))
+        suppress(conn, lead["email"], "recipient refused at send")
+        return "rejected"
+    attempts = send["attempts"] + 1
+    if attempts >= max_attempts:
+        conn.execute("UPDATE sends SET status='failed', attempts=?, error=? WHERE id=?", (attempts, err, send["id"]))
+        conn.execute("UPDATE enrollments SET status='stopped' WHERE id=?", (enr["id"],))
+        return "failed"
+    conn.execute("UPDATE sends SET status='queued', attempts=?, error=? WHERE id=?", (attempts, err, send["id"]))
+    return "retry"
+
+
 def run(conn: sqlite3.Connection, on: date, settings, live: bool = False, limit: int | None = None,
         ignore_window: bool = False, log=print) -> Counter:
     stats: Counter = Counter()
     sending = settings["sending"]
     outbox = settings.path("outbox") / on.isoformat()
     campaigns: dict[int, Campaign] = {}
+    if live:
+        stats["recovered_interrupted"] = recover_interrupted(conn, settings, log)
 
     queued = conn.execute(
         """SELECT s.* FROM sends s JOIN inboxes i ON i.id=s.inbox_id
@@ -132,77 +224,79 @@ def run(conn: sqlite3.Connection, on: date, settings, live: bool = False, limit:
     for s in queued:
         by_inbox.setdefault(s["inbox_id"], []).append(s)
     next_ok = {i: 0.0 for i in by_inbox}
+    pool = SmtpPool(settings)
 
-    while any(by_inbox.values()):
-        inbox_id = min((i for i in by_inbox if by_inbox[i]), key=lambda i: next_ok[i])
-        if live:
-            wait = next_ok[inbox_id] - time.time()
-            if wait > 0:
-                time.sleep(wait)
-            if not ignore_window and not in_window(now_in(sending["timezone"]), sending):
-                log("Outside the sending window; the rest stays queued for the next run.")
-                stats["left_in_queue"] = sum(len(v) for v in by_inbox.values())
-                break
-        send = by_inbox[inbox_id].pop(0)
-        enr = conn.execute("SELECT * FROM enrollments WHERE id=?", (send["enrollment_id"],)).fetchone()
-        lead = conn.execute("SELECT * FROM leads WHERE id=?", (send["lead_id"],)).fetchone()
-        inbox = conn.execute("SELECT * FROM inboxes WHERE id=?", (inbox_id,)).fetchone()
-
-        # Re-check right before sending: a reply or opt-out may have landed since scheduling.
-        if enr["status"] != "active" or enr["step"] != send["step"] or is_suppressed(conn, lead["email"]):
+    try:
+        while any(by_inbox.values()):
+            inbox_id = min((i for i in by_inbox if by_inbox[i]), key=lambda i: next_ok[i])
             if live:
-                conn.execute("UPDATE sends SET status='skipped', error='stopped before send' WHERE id=?", (send["id"],))
-                conn.commit()
-            stats["skipped_stopped"] += 1
-            continue
-        if inbox["status"] != "active":
-            stats["skipped_inbox_paused"] += 1
-            continue
+                wait = next_ok[inbox_id] - time.time()
+                if wait > 0:
+                    time.sleep(wait)
+                if not ignore_window and not in_window(now_in(sending["timezone"]), sending):
+                    log("Outside the sending window; the rest stays queued for the next run.")
+                    stats["left_in_queue"] = sum(len(v) for v in by_inbox.values())
+                    break
+            send = by_inbox[inbox_id].pop(0)
+            enr = conn.execute("SELECT * FROM enrollments WHERE id=?", (send["enrollment_id"],)).fetchone()
+            lead = conn.execute("SELECT * FROM leads WHERE id=?", (send["lead_id"],)).fetchone()
+            inbox = conn.execute("SELECT * FROM inboxes WHERE id=?", (inbox_id,)).fetchone()
 
-        camp_id = enr["campaign_id"]
-        if camp_id not in campaigns:
-            file = conn.execute("SELECT file FROM campaigns WHERE id=?", (camp_id,)).fetchone()["file"]
-            campaigns[camp_id] = load_campaign(file)
-        camp = campaigns[camp_id]
+            # Re-check right before sending: a reply or opt-out may have landed since scheduling.
+            if enr["status"] != "active" or enr["step"] != send["step"] or is_suppressed(conn, lead["email"]):
+                if live:
+                    conn.execute("UPDATE sends SET status='skipped', error='stopped before send' WHERE id=?", (send["id"],))
+                    conn.commit()
+                stats["skipped_stopped"] += 1
+                continue
+            if inbox["status"] != "active":
+                stats["skipped_inbox_paused"] += 1
+                continue
 
-        msg, variant_idx, reason = compose(send, enr, lead, inbox, camp, settings)
-        if msg is None:
-            stats["skipped_template"] += 1
-            if live:
-                conn.execute("UPDATE sends SET status='skipped', error=? WHERE id=?", (reason, send["id"]))
-                conn.execute("UPDATE enrollments SET status='stopped' WHERE id=?", (enr["id"],))
-                conn.commit()
-            log(f"skip {lead['email']}: {reason}")
-            continue
+            camp = _campaign(conn, campaigns, enr["campaign_id"])
+            msg, variant_idx, reason = compose(send, enr, lead, inbox, camp, settings)
+            if msg is None:
+                stats["skipped_template"] += 1
+                if live:
+                    conn.execute("UPDATE sends SET status='skipped', error=? WHERE id=?", (reason, send["id"]))
+                    conn.execute("UPDATE enrollments SET status='stopped' WHERE id=?", (enr["id"],))
+                    conn.commit()
+                log(f"skip {lead['email']}: {reason}")
+                continue
 
-        if not live:
-            outbox.mkdir(parents=True, exist_ok=True)
-            (outbox / f"{send['id']:07d}_{inbox['email']}_to_{lead['email']}.eml").write_bytes(bytes(msg))
-            stats["dry_run_written"] += 1
-            continue
+            if not live:
+                outbox.mkdir(parents=True, exist_ok=True)
+                (outbox / f"{send['id']:07d}_{inbox['email']}_to_{lead['email']}.eml").write_bytes(bytes(msg))
+                stats["dry_run_written"] += 1
+                continue
 
-        try:
-            _smtp_send(inbox, msg)
-        except Exception as exc:  # network/auth errors: keep going with other inboxes
-            conn.execute("UPDATE sends SET status='failed', error=? WHERE id=?", (str(exc)[:500], send["id"]))
+            # Mark first, so a crash between SMTP accepting the email and the commit can't cause a resend.
+            conn.execute("UPDATE sends SET status='sending', message_id=?, subject=?, variant=? WHERE id=?",
+                         (msg["Message-ID"], msg["Subject"], variant_idx, send["id"]))
             conn.commit()
-            stats["failed"] += 1
-            log(f"FAIL {inbox['email']} -> {lead['email']}: {exc}")
-            if isinstance(exc, (smtplib.SMTPAuthenticationError, RuntimeError)):
-                by_inbox[inbox_id] = []  # no point retrying this inbox today
-            continue
+            try:
+                pool.send(inbox, msg)
+            except Exception as exc:
+                outcome = _record_failure(conn, send, enr, lead, exc, int(sending.get("max_attempts", 3)))
+                conn.commit()
+                stats[f"send_{outcome}"] += 1
+                log(f"FAIL ({outcome}) {inbox['email']} -> {lead['email']}: {exc}")
+                if isinstance(exc, (smtplib.SMTPAuthenticationError, AuthError)):
+                    stats["inbox_auth_failed"] += 1
+                    by_inbox[inbox_id] = []  # no point retrying this inbox today; queue rolls over
+                continue
 
-        conn.execute(
-            "UPDATE sends SET status='sent', sent_at=datetime('now'), message_id=?, subject=?, variant=? WHERE id=?",
-            (msg["Message-ID"], msg["Subject"], variant_idx, send["id"]),
-        )
-        _advance(conn, enr, camp, msg, on, settings)
-        conn.commit()
-        stats["sent"] += 1
-        log(f"sent {inbox['email']} -> {lead['email']} (step {send['step'] + 1})")
-        next_ok[inbox_id] = time.time() + random.uniform(
-            float(sending["min_delay_seconds"]), float(sending["max_delay_seconds"])
-        )
+            conn.execute("UPDATE sends SET status='sent', sent_at=datetime('now') WHERE id=?", (send["id"],))
+            _advance(conn, enr, camp, msg["Message-ID"], msg["Subject"], on, settings)
+            conn.commit()
+            stats["sent"] += 1
+            log(f"sent {inbox['email']} -> {lead['email']} (step {send['step'] + 1})")
+            next_ok[inbox_id] = time.time() + random.uniform(
+                float(sending["min_delay_seconds"]), float(sending["max_delay_seconds"])
+            )
+    finally:
+        pool.close()
+        stats["smtp_logins"] = pool.logins
 
     if not live and stats["dry_run_written"]:
         log(f"Dry run: wrote {stats['dry_run_written']} .eml files to {outbox}")

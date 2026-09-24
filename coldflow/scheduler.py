@@ -40,7 +40,7 @@ def build_queue(conn: sqlite3.Connection, on: date, settings: dict) -> Counter:
     inboxes = {r["id"]: r for r in conn.execute("SELECT * FROM inboxes WHERE status='active'")}
     used = Counter({
         r["inbox_id"]: r["n"] for r in conn.execute(
-            "SELECT inbox_id, COUNT(*) n FROM sends WHERE scheduled_for=? AND status IN ('queued','sent') GROUP BY inbox_id",
+            "SELECT inbox_id, COUNT(*) n FROM sends WHERE scheduled_for=? AND status IN ('queued','sending','sent') GROUP BY inbox_id",
             (day,),
         )
     })
@@ -125,6 +125,6 @@ def build_queue(conn: sqlite3.Connection, on: date, settings: dict) -> Counter:
 
 def _new_today(conn: sqlite3.Connection, inbox_id: int, day: str) -> int:
     return conn.execute(
-        "SELECT COUNT(*) FROM sends WHERE inbox_id=? AND scheduled_for=? AND step=0 AND status IN ('queued','sent')",
+        "SELECT COUNT(*) FROM sends WHERE inbox_id=? AND scheduled_for=? AND step=0 AND status IN ('queued','sending','sent')",
         (inbox_id, day),
     ).fetchone()[0]

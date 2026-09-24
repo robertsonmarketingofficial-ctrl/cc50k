@@ -22,6 +22,25 @@ DEFAULTS: dict = {
         "max_per_company_domain_per_day": 2,
         "new_lead_share": 0.6,
         "unsubscribe_line": "Not the right fit? Reply \"no thanks\" and I won't reach out again.",
+        "smtp_reuse_seconds": 240,
+        "max_attempts": 3,
+    },
+    "replies": {
+        "imap_workers": 8,
+    },
+    "oauth_microsoft": {
+        "client_id": "",
+        "tenant": "organizations",
+    },
+    "alerts": {
+        "webhook_url": "",
+        "email_to": "",
+        "smtp_host": "smtp.gmail.com",
+        "smtp_port": 587,
+        "smtp_username": "",
+        "smtp_password_env": "CF_ALERT_PASSWORD",
+        "only_on_warnings": False,
+        "lead_supply_days": 3,
     },
     "warmup": {
         "warmup_only_days": 14,
@@ -45,6 +64,7 @@ DEFAULTS: dict = {
         "db": "data/coldflow.db",
         "outbox": "data/outbox",
         "reports": "reports",
+        "tokens": "data/tokens.json",
     },
 }
 

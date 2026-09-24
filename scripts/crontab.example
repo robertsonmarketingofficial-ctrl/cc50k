@@ -9,5 +9,5 @@ SHELL=/bin/bash
 0 12,16 * * 1-5  cd /opt/cc50k && set -a && source .env && set +a && python3 -m coldflow replies >> logs/replies.log 2>&1
 
 # Weekly deep sweep for late bounces, plus a nightly database backup.
-0 6 * * 1  cd /opt/cc50k && set -a && source .env && set +a && python3 -m coldflow replies --days 14 >> logs/replies.log 2>&1
+0 6 * * 1  cd /opt/cc50k && set -a && source .env && set +a && python3 -m coldflow replies --deep --days 14 >> logs/replies.log 2>&1
 0 23 * * *  cd /opt/cc50k && sqlite3 data/coldflow.db ".backup 'backups/coldflow-$(date +\%F).db'"

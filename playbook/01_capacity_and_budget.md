@@ -30,16 +30,16 @@ new leads              = target / 3                       (3-step sequence)
 | New verified leads per month | ~16,700 |
 | Leads per sending day | ~800 |
 
-**Estimated cost** (defaults: $7.20/inbox/month, $12/domain/year, $0.02/lead for data plus
-verification). **Check current vendor pricing before you buy.**
+**Monthly cost by setup** (September 2026 prices; `python -m coldflow plan` shows the full breakdown):
 
-| | |
-|---|---|
-| Domains, up front (year 1) | ~$372 |
-| Inboxes | ~$662/month |
-| Leads (data + verification) | ~$333/month |
-| **Monthly run-rate** | **~$1,030** |
-| Optional: warmup tool, lead database seat, verifier plan | add your actual plans |
+| Setup | How it works | Monthly |
+|---|---|---|
+| **Lean (recommended, cheapest)** | $4 inboxes (Exchange Online P1 / reseller Google), coldflow sends, Instantly Growth ($47) warms | **~$700** |
+| Hybrid | $7 Google/Microsoft inboxes, Instantly Hypergrowth ($97) warms and sends | ~$1,020 |
+| DIY | $7 inboxes, coldflow sends, per-inbox warmup tool (~$12/inbox) | ~$2,035 |
+
+Plus **~$372 up front** for 31 domains. All three include ~$250/mo for lead data and
+verification ($0.015/lead). Details and trade-offs: [09 Cheapest setup](09_cheapest_setup.md).
 
 ## Phase 2: 50,000 per week
 
@@ -51,16 +51,14 @@ verification). **Check current vendor pricing before you buy.**
 | Domains | 129 |
 | New verified leads per week | ~16,700 (≈72k/month) |
 
-That is **about 4.2x Phase 1** in inboxes, leads and cost: ≈$4,350/month plus ≈$1,550 of domains up front, at the same unit prices.
+That is about 4.2x Phase 1 in inboxes and leads. Monthly: **lean ~$2,800**, hybrid ~$4,180,
+DIY ~$8,530, plus ~$1,550 of domains up front.
 Go there only after Phase 1 shows a working offer: a reply rate at or above 1.5% and positive
 replies turning into calls. More volume does not fix a bad offer. It burns domains faster.
 
-**Cost levers at Phase 2 scale:**
-- Mix Microsoft 365 inboxes in with Google. It's often cheaper per seat and spreads provider risk.
-- Specialist "cold email inbox" resellers sell pre-configured Google or Microsoft inboxes in bulk.
-  Compare their price per inbox against DIY and check their terms.
-- Leads become the second-biggest cost at 72k a month. Cheap data costs more in bounces and burned domains, so
-  keep verification.
+**Cost levers at Phase 2 scale:** the lean setup's savings grow with inbox count, because
+Instantly Growth warms any number of inboxes for a flat fee. Leads become the second-biggest cost
+at 72k a month; cheap data costs more in bounces and burned domains, so keep verification.
 
 ## Funnel expectations (planning assumptions, not promises)
 
