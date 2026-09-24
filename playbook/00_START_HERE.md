@@ -16,6 +16,7 @@ to book sales calls for the agency.
 | 07 | [90-day rollout](07_90_day_rollout.md) | Week-by-week plan from zero to full volume |
 | 08 | [Software guide](08_software_guide.md) | Every `coldflow` command and how the pieces fit |
 | 09 | [Cheapest setup](09_cheapest_setup.md) | The ~$700/month way to run 50k/month, and what you trade for it |
+| 10 | [Beginner's guide](10_beginners_guide.md) | **New to all this? Start here.** Every step and every term explained from zero |
 
 ## The whole system on one page
 

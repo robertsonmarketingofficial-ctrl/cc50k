@@ -9,7 +9,8 @@ It has two parts:
 2. **`playbook/`**: the operating plan. Infrastructure math, domain and DNS setup, lead sourcing,
    copy, compliance, and the daily and weekly routine.
 
-Start with **[playbook/00_START_HERE.md](playbook/00_START_HERE.md)**.
+Start with **[playbook/00_START_HERE.md](playbook/00_START_HERE.md)**. New to email systems? Read
+**[playbook/10_beginners_guide.md](playbook/10_beginners_guide.md)** first: every step and term explained from zero.
 
 ## The recommendation in one paragraph
 
