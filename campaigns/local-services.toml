@@ -1,0 +1,59 @@
+# Local service businesses (HVAC, plumbing, roofing, dental, med spa, law, etc.)
+# Anything in [[DOUBLE BRACKETS]] must be replaced with your real details; live sending
+# refuses to run until they are gone. {{field|fallback}} tokens fill from the lead CSV.
+#
+# Rules this copy follows: plain text, no links or images in email 1, under ~90 words,
+# one soft question as the call to action, and follow-ups that reply in the same thread.
+
+name = "local-services"
+description = "Owner/GM of local service businesses in the US"
+
+# Optional: only enroll leads whose columns match (case-insensitive). Remove to take everyone.
+# [filters]
+# industry = ["hvac", "plumbing", "roofing"]
+
+[[steps]]
+day = 0
+  [[steps.variants]]
+  subject = "{{company|your business}} + more booked jobs"
+  body = """
+Hi {{first_name|there}},
+
+{{icebreaker|I was looking at local {{industry|service}} companies in {{city|your area}} and yours came up.}}
+
+We help {{industry|home service}} businesses get more booked jobs from Google and Facebook without long contracts. [[ONE-LINE PROOF, e.g. "A roofer in Tampa went from 9 to 31 inspections a month in 60 days."]]
+
+Would it be worth a quick look at what that could look like for {{company|you}}?
+"""
+
+  [[steps.variants]]
+  subject = "question about {{company|your ads}}"
+  body = """
+Hi {{first_name|there}},
+
+Quick one: are you getting as many calls from Google as you'd like right now, or is most of your work still word of mouth?
+
+We run ads and local SEO for {{industry|service}} businesses and usually pay for ourselves inside the first month. [[ONE-LINE PROOF]]
+
+Open to a 15-minute call to see if it fits?
+"""
+
+[[steps]]
+day = 3
+  [[steps.variants]]
+  subject = ""
+  body = """
+Hi {{first_name|there}}, bumping this in case it got buried.
+
+If it helps, I can record a short video walking through 2-3 quick wins I'd make for {{company|your business}}. Free, no call needed. Want me to send it?
+"""
+
+[[steps]]
+day = 8
+  [[steps.variants]]
+  subject = ""
+  body = """
+{{first_name|Hi}}, last note from me.
+
+If more calls isn't a priority right now, no worries at all. If it is, just reply "yes" and I'll send over a couple of times.
+"""

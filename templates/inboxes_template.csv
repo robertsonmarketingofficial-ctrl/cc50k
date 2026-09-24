@@ -1,0 +1,5 @@
+email,from_name,provider,password_env,daily_cap,warmup_start
+alex@getacme-media.com,Alex Robertson,google,,30,2026-10-01
+alex.r@getacme-media.com,Alex Robertson,google,,30,2026-10-01
+a.robertson@getacme-media.com,Alex Robertson,google,,30,2026-10-01
+alex@tryacmemedia.com,Alex Robertson,microsoft,,30,2026-10-01

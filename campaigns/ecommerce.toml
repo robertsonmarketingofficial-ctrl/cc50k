@@ -1,0 +1,47 @@
+# E-commerce / DTC brands (Shopify stores doing roughly $20k-$500k/month).
+# Replace every [[PLACEHOLDER]] before going live.
+
+name = "ecommerce"
+description = "Founders/marketing leads at DTC brands"
+
+[[steps]]
+day = 0
+  [[steps.variants]]
+  subject = "{{company|your store}}'s ad costs"
+  body = """
+Hi {{first_name|there}},
+
+{{icebreaker|Came across {{company|your brand}} and liked what you're doing.}}
+
+Most brands your size we talk to are fighting rising ad costs on Meta. We fix that with better creative testing and email/SMS flows that turn more first orders into repeat ones. [[ONE-LINE PROOF, e.g. "Took a skincare brand from 1.9x to 3.4x blended ROAS in one quarter."]]
+
+Worth a quick chat?
+"""
+
+  [[steps.variants]]
+  subject = "repeat buyers at {{company|your store}}"
+  body = """
+Hi {{first_name|there}},
+
+What share of {{company|your}} revenue comes from repeat customers right now?
+
+For most stores we audit it's under 25%, and it's the cheapest growth lever there is. [[ONE-LINE PROOF]]
+
+Happy to share the 3 flows we'd set up first, if useful?
+"""
+
+[[steps]]
+day = 3
+  [[steps.variants]]
+  subject = ""
+  body = """
+{{first_name|Hi}}, following up. I can put together a free 5-minute teardown of {{company|your store}}'s ads and email flows. Should I send it over?
+"""
+
+[[steps]]
+day = 9
+  [[steps.variants]]
+  subject = ""
+  body = """
+Last one from me, {{first_name|there}}. If growth marketing isn't on the list this quarter, totally fine. If it is, reply with a good time and I'll make it easy.
+"""

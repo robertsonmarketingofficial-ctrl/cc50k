@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.env
+coldflow.toml
+data/
+reports/
+logs/
+backups/

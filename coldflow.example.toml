@@ -1,0 +1,43 @@
+# coldflow settings. Copy to coldflow.toml (`python -m coldflow init` does it for you).
+
+[company]
+# Every email carries your company name and postal address (a US CAN-SPAM requirement).
+name = "Your Agency LLC"
+physical_address = "123 Main St, Suite 100, City, ST 00000, USA"
+website = "https://example.com"
+# Added under every email body. Tokens: {{sender_name}}, {{sender_first_name}}, {{company_name}}, {{website_url}}
+sender_signature = "{{sender_first_name}}\n{{company_name}}"
+
+[sending]
+timezone = "America/New_York"         # sending window is in this timezone
+window_start = "08:00"
+window_end = "17:00"
+sending_days = ["mon", "tue", "wed", "thu", "fri"]
+min_delay_seconds = 120               # gap between two emails from the SAME inbox
+max_delay_seconds = 360
+max_per_company_domain_per_day = 2    # don't hit 10 people at one company on the same day
+new_lead_share = 0.6                  # max share of an inbox's daily cap used on first-touch emails
+unsubscribe_line = "Not the right fit? Reply \"no thanks\" and I won't reach out again."
+
+[warmup]
+warmup_only_days = 14                 # days of warmup-only before any cold email
+ramp_start = 5                        # first cold day: 5 emails per inbox
+ramp_step = 2                         # +2 per day until daily_cap
+default_daily_cap = 30                # cold emails per inbox per day at full speed
+
+[health]
+max_bounce_rate = 0.03                # auto-pause an inbox above 3% bounces...
+max_unsubscribe_rate = 0.02           # ...or 2% opt-outs
+min_sends_for_health = 40             # need this many sends before judging an inbox
+lookback_days = 7
+
+[leads]
+skip_role_accounts = true             # info@, sales@, support@ ...
+skip_free_mail = true                 # gmail.com, yahoo.com ... (B2B only)
+allow_catch_all = false               # import catch-all/risky verifier results?
+check_mx = false                      # true = look up MX on import (needs dnspython)
+
+[paths]
+db = "data/coldflow.db"
+outbox = "data/outbox"                # dry-run .eml files
+reports = "reports"

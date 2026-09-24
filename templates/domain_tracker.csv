@@ -1,0 +1,3 @@
+domain,registrar,purchased,redirects_to_main_site,provider,inboxes,spf,dkim,dmarc,warmup_started,cold_start_date,status,notes
+getacme-media.com,Porkbun,2026-09-30,yes,google,3,yes,yes,yes,2026-10-01,2026-10-15,warming,
+tryacmemedia.com,Porkbun,2026-09-30,yes,microsoft,3,yes,yes,yes,2026-10-01,2026-10-15,warming,

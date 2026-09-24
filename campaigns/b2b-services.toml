@@ -1,0 +1,47 @@
+# B2B companies (professional services, SaaS, agencies, manufacturers) that sell on
+# a longer cycle and need a steady flow of qualified leads. Replace [[PLACEHOLDERS]].
+
+name = "b2b-services"
+description = "CEOs, founders and heads of sales/marketing at 10-200 person B2B companies"
+
+[[steps]]
+day = 0
+  [[steps.variants]]
+  subject = "pipeline at {{company|your company}}"
+  body = """
+Hi {{first_name|there}},
+
+{{icebreaker|Saw {{company|your company}} while researching {{industry|B2B}} firms.}}
+
+We build lead generation for {{industry|B2B}} companies: targeted outbound plus the landing pages and ads to convert it. [[ONE-LINE PROOF, e.g. "Added 14 qualified sales calls a month for an IT services firm."]]
+
+Is filling the pipeline something you're working on this quarter?
+"""
+
+  [[steps.variants]]
+  subject = "{{first_name|quick}} question"
+  body = """
+Hi {{first_name|there}},
+
+Where do most of {{company|your}} new clients come from today: referrals, outbound, or inbound?
+
+If the answer is "mostly referrals", we help make that predictable. [[ONE-LINE PROOF]]
+
+Open to a short call to compare notes?
+"""
+
+[[steps]]
+day = 4
+  [[steps.variants]]
+  subject = ""
+  body = """
+{{first_name|Hi}}, floating this back up. Happy to send a one-page plan of how we'd get {{company|you}} 10+ extra sales conversations a month. Want it?
+"""
+
+[[steps]]
+day = 10
+  [[steps.variants]]
+  subject = ""
+  body = """
+Closing the loop, {{first_name|there}}. If now's not the time, no problem. If you'd like the plan, just reply "send it".
+"""
