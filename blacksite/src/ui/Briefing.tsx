@@ -74,7 +74,7 @@ export default function Briefing({ save, contract, persist, onBack, onDeploy }: 
             {!save.seenTutorial && (
               <div className="card" style={{ marginTop: 22 }}>
                 <div className="label">Field notes</div>
-                <p>Stay in the dark. Guards' flashlights show where they're looking. Walk behind a guard and press <span className="kbd">E</span> to take them down. Crouch with <span className="kbd">C</span> to move silently. Everything you do tonight will be remembered next time.</p>
+                <p>You start in the prep phase with a drone: drive it in, find the objective, click guards to mark them. Press <span className="kbd">Space</span> to breach. Inside, stay in the dark, lean with <span className="kbd">Q</span>/<span className="kbd">E</span>, sneak behind guards and press <span className="kbd">F</span> to take them down. Aim at heads. Everything you do tonight will be remembered.</p>
               </div>
             )}
           </div>

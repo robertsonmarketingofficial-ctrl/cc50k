@@ -31,8 +31,9 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
 
 export interface GadgetDef { id: GadgetId; name: string; key: string; count: number; desc: string }
 export const GADGETS: Record<GadgetId, GadgetDef> = {
-  noisemaker: { id: "noisemaker", name: "Noisemaker", key: "Q", count: 3, desc: "Thrown beacon that clatters and chirps. Pulls nearby guards to investigate." },
-  emp: { id: "emp", name: "EMP charge", key: "G", count: 2, desc: "Knocks out cameras, lights and electronic locks in a radius for 12 seconds." },
+  noisemaker: { id: "noisemaker", name: "Noisemaker", key: "G", count: 3, desc: "Thrown beacon that clatters and chirps. Pulls nearby guards to investigate." },
+  emp: { id: "emp", name: "EMP charge", key: "3·4", count: 2, desc: "Knocks out cameras, lights and electronic locks in a radius for 12 seconds." },
+  breach: { id: "breach", name: "Breach charge", key: "3·4", count: 3, desc: "Soft-breach explosive. Stick it on an interior wall and it blows a hole you can walk through. Very loud." },
   thermal: { id: "thermal", name: "Thermal optic", key: "T", count: 99, desc: "Pulse that shows everyone within 18m through walls for 3 seconds. 20s recharge." },
 };
 
@@ -106,6 +107,7 @@ export const UNLOCKS: UnlockDef[] = [
   { id: "smg", name: "Vekta MP-9", kind: "weapon", cost: 900, rep: 1, desc: WEAPONS.smg.desc + " " + WEAPONS.smg.tradeoff },
   { id: "bypass", name: "Bypass kit", kind: "gear", cost: 700, rep: 0, desc: "Hacks locks and terminals 2.5× faster. Changes which routes are realistic." },
   { id: "noisemaker", name: "Noisemaker", kind: "gadget", cost: 0, rep: 0, desc: GADGETS.noisemaker.desc },
+  { id: "breach", name: "Breach charges", kind: "gadget", cost: 0, rep: 0, desc: GADGETS.breach.desc },
   { id: "armor", name: "Soft armour vest", kind: "gear", cost: 1100, rep: 2, desc: "Takes about two extra hits. The plates rattle: sprinting is louder while you wear it." },
   { id: "pack", name: "Field pack", kind: "gear", cost: 800, rep: 1, desc: "Carry 10 units instead of 6. Heavier loads slow you down a little more." },
   { id: "shotgun", name: "Halden 12 breacher", kind: "weapon", cost: 1500, rep: 2, desc: WEAPONS.shotgun.desc + " " + WEAPONS.shotgun.tradeoff },

@@ -38,7 +38,7 @@ export default function App() {
       const c = loaded.contracts.find(c => c.id === loaded!.inMission!.contractId);
       if (c) {
         const lost: MissionResult = { outcome: "aborted", objectiveDone: false, optionalsDone: [], loot: [], entry: loaded.facilities[c.facility].lastEntry ?? "main", alarms: 0, lockdown: false,
-          kills: 0, kos: 0, camerasDestroyed: [], camerasEmped: 0, loopedFeeds: false, panelsSabotaged: 0, chief: "untouched", explored: loaded.facilities[c.facility].explored,
+          kills: 0, kos: 0, camerasDestroyed: [], camerasEmped: 0, breaches: [], headshots: 0, dronesLost: 0, loopedFeeds: false, panelsSabotaged: 0, chief: "untouched", explored: loaded.facilities[c.facility].explored,
           events: [{ time: 0, text: "Operative signal lost. No further contact.", tone: "dim" }], duration: 0, zeroHourPassed: false, shotsFired: 0, hostageRescued: false, spotted: 0 };
         applyResult(loaded, c, lost);
         setNotice("Your last mission was interrupted. OVERWATCH logged it as a lost signal: nothing gained, nothing lost.");

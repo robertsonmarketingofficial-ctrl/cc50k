@@ -10,7 +10,7 @@ const ENTRANCE_NAMES: Record<EntranceId, string> = { main: "main entrance", dock
 export function defaultMemory(f: FacilityId): FacilityMemory {
   return {
     visits: 0, entryUse: { main: 0, dock: 0, maint: 0 }, alarms: 0, lockdowns: 0, kills: 0, kos: 0,
-    destroyedCams: [], hardenedCams: [], extraCams: [], postedGuards: [], heat: f === "blacksite" ? 3 : 0, explored: "",
+    destroyedCams: [], breachedWalls: [], hardenedCams: [], extraCams: [], postedGuards: [], heat: f === "blacksite" ? 3 : 0, explored: "",
     chief: { name: FACILITIES[f].chief, status: "active", spared: 0, replacement: FACILITIES[f].replacement },
     contractors: false, terminalHardened: false, rota: false, blueprint: false, panelsReinforced: false, objectiveMoved: false,
     failures: 0, extractions: 0, lastRun: -1,
@@ -22,8 +22,8 @@ export const DEFAULT_SETTINGS: Settings = { master: 0.8, sfx: 0.9, ambience: 0.7
 export function newSave(): SaveGame {
   const s: SaveGame = {
     version: 2, createdAt: Date.now(), credits: 400, rep: 0, incident: 487, runs: 0,
-    owned: ["pistol", "noisemaker"],
-    loadout: { primary: null, gadgets: ["noisemaker"], armor: false, pack: false },
+    owned: ["pistol", "noisemaker", "breach"],
+    loadout: { primary: null, gadgets: ["breach", "noisemaker"], armor: false, pack: false },
     facilities: { halvorsen: defaultMemory("halvorsen"), meridian: defaultMemory("meridian"), kestrel: defaultMemory("kestrel"), blacksite: defaultMemory("blacksite") },
     story: [], contracts: [], reports: [], news: [], stash: [], inMission: null, settings: { ...DEFAULT_SETTINGS }, seenTutorial: false,
   };
@@ -41,6 +41,7 @@ export function loadSave(): { save: SaveGame | null; error?: string } {
     // forward-fill any fields added since the save was written
     for (const f of Object.keys(FACILITIES) as FacilityId[]) s.facilities[f] = { ...defaultMemory(f), ...(s.facilities[f] ?? {}) };
     s.settings = { ...DEFAULT_SETTINGS, ...(s.settings ?? {}) };
+    if (!s.owned.includes("breach")) s.owned.push("breach");
     if (!s.contracts.length) s.contracts = generateContracts(s);
     return { save: s };
   } catch {
@@ -197,6 +198,10 @@ export function applyResult(save: SaveGame, contract: Contract, r: MissionResult
     m.hardenedCams = m.hardenedCams.slice(-6);
     say(`${r.camerasDestroyed.length} destroyed camera${r.camerasDestroyed.length > 1 ? "s" : ""} replaced with shielded units that EMP can't disable.`, "You shot them out.");
   }
+  if (r.breaches?.length) {
+    m.breachedWalls = [...(m.breachedWalls ?? []), ...r.breaches.map(v => ({ x: v.x, y: v.y }))].slice(-16);
+    say(`${r.breaches.length} breached wall section${r.breaches.length > 1 ? "s" : ""} rebuilt with steel reinforcement. Charges won't go through them now.`, "You blew holes in their walls.");
+  }
   if (r.loopedFeeds && !m.terminalHardened) {
     m.terminalHardened = true;
     say("Security control terminal re-secured. Looping the feeds will take twice as long.", "IT found the camera loop in the morning.");
@@ -347,6 +352,7 @@ export function facilityIntel(save: SaveGame, f: FacilityId): { label: string; d
   for (const e of m.extraCams) out.push({ label: `Camera at ${ENTRANCE_NAMES[e]}`, detail: "Installed because you kept using it.", tone: "amber" });
   for (const e of m.postedGuards) out.push({ label: `Guard posted at ${ENTRANCE_NAMES[e]}`, detail: "Your habit has become their routine.", tone: "red" });
   if (m.hardenedCams.length) out.push({ label: `${m.hardenedCams.length} shielded camera${m.hardenedCams.length > 1 ? "s" : ""}`, detail: "Replacements for the ones you shot. EMP won't touch them.", tone: "amber" });
+  if (m.breachedWalls?.length) out.push({ label: `${m.breachedWalls.length} wall section${m.breachedWalls.length > 1 ? "s" : ""} reinforced`, detail: "Steel plating where you breached last time. Find another way through.", tone: "amber" });
   if (m.terminalHardened) out.push({ label: "Camera loop patched", detail: "Security control takes twice as long to breach." });
   if (m.objectiveMoved) out.push({ label: "Target relocated", detail: "After the last failed attempt it isn't in the vault any more.", tone: "amber" });
   if (f === "kestrel" && save.story.includes("kestrel_key")) out.push({ label: "Cloned master key", detail: "Red-clearance doors open for you here." });

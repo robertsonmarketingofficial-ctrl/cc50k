@@ -10,7 +10,7 @@ export type RoomType =
 
 export type EntranceId = "main" | "dock" | "maint";
 export type WeaponId = "pistol" | "smg" | "shotgun";
-export type GadgetId = "noisemaker" | "emp" | "thermal";
+export type GadgetId = "noisemaker" | "emp" | "thermal" | "breach";
 export type MissionType = "steal" | "data" | "sabotage" | "rescue" | "investigate";
 export type AlertLevel = 0 | 1 | 2 | 3; // CALM, CAUTION, ALERT, LOCKDOWN
 export type GuardState = "PATROL" | "SUSPICIOUS" | "INVESTIGATING" | "ALERT" | "SEARCHING" | "COMBAT" | "RETURNING" | "RAISING" | "DOWN";
@@ -92,6 +92,9 @@ export interface Level {
   entrances: Entrance[];
   extraction: Vec & { r: number; name: string };
   guards: GuardSpec[];
+  reinforced: Set<number>; // wall tiles that can't be breached
+  wallHp: Map<number, number>;
+  version: number; // bumps when geometry changes (breaches)
   props: { x: number; y: number; w: number; h: number; kind: string; tall: boolean }[];
   objectiveRoom: number;
   alarmPanels: number[]; // interactable ids
@@ -128,6 +131,7 @@ export interface FacilityMemory {
   kills: number;
   kos: number;
   destroyedCams: Vec[];
+  breachedWalls: Vec[];
   hardenedCams: Vec[];
   extraCams: EntranceId[];
   postedGuards: EntranceId[];
@@ -211,6 +215,9 @@ export interface MissionResult {
   kos: number;
   camerasDestroyed: Vec[];
   camerasEmped: number;
+  breaches: Vec[];
+  headshots: number;
+  dronesLost: number;
   loopedFeeds: boolean;
   panelsSabotaged: number;
   chief: "untouched" | "spared" | "killed";

@@ -24,7 +24,11 @@ export interface Guard {
   down: null | "ko" | "dead"; found: boolean; looted: boolean; seesPlayer: boolean; lastSeenT: number;
   bark: { text: string; t: number } | null; radioAt: number; lookBase: number; panel: number; lockerCheck: number;
   radioJammedUntil: number; speedMul: number; reinforcement: boolean; checkedLocker: Set<number>; stuck: number; shotsAtPlayer: number; stepT: number;
+  markedUntil: number; droneSus: number;
 }
+
+export const PREP_TIME = 30;
+export const EYE = 1.62, EYE_CROUCH = 1.05;
 
 interface Projectile { x: number; y: number; tx: number; ty: number; t: number; dur: number; kind: GadgetId; landed: boolean; life: number; pingT: number }
 interface Particle { x: number; y: number; vx: number; vy: number; life: number; max: number; kind: "spark" | "smoke" | "blood" | "casing" | "glass" | "dust"; size: number }
@@ -76,7 +80,33 @@ export class Game {
   evidence = 0;
   objectiveDone = false;
   stats = { kills: 0, kos: 0, shots: 0, camerasDestroyed: [] as Vec[], camerasEmped: 0, looped: false, panels: 0, spotted: 0, chief: "untouched" as MissionResult["chief"], alarms: 0, lockdown: false };
-  input = { up: false, down: false, left: false, right: false, fire: false, firePressed: false, interact: false, interactPressed: false, mouseX: 0, mouseY: 0 };
+  input = { up: false, down: false, left: false, right: false, fire: false, firePressed: false, interact: false, interactPressed: false, mouseX: 0, mouseY: 0,
+    mvx: 0, mvy: 0, pitch: 0, ads: false, leanL: false, leanR: false };
+  // first-person / tactical layer
+  prepEnd = PREP_TIME;
+  drones: { x: number; y: number; angle: number; alive: boolean }[] = [];
+  droneIdx = -1; // -1: controlling the operator
+  dronesLeft = 2;
+  camView = -1; // index into level.cameras while watching hacked feeds
+  feedsHacked = false;
+  lean = 0; // -1 left, 1 right, smoothed
+  breachCharges: { x: number; y: number; tile: number; t: number }[] = [];
+  feed: { text: string; t: number; head?: boolean; tone?: "red" | "amber" }[] = [];
+  hitMarker: { t: number; head: boolean; kill: boolean } | null = null;
+  damageDirs: { angle: number; t: number }[] = [];
+  breaches: Vec[] = [];
+  headshots = 0;
+  dronesLost = 0;
+  recoil = 0;
+  equipped: "weapon" | GadgetId = "weapon";
+  /** 1/2 weapons, 3/4 gadgets: gadgets are used with the fire button, like a weapon */
+  equip(slot: number, gadgets: GadgetId[]) {
+    const p = this.player;
+    if (slot <= 2) { this.equipped = "weapon"; this.switchWeapon(slot - 1); return; }
+    const g = gadgets[slot - 3];
+    if (!g || g === "thermal" || !p.gadgets[g]) { this.sfx.play("denied"); return; }
+    this.equipped = g; this.sfx.play("equip");
+  }
   holding: { id: string; t: number } | null = null;
   prompt: Prompt | null = null;
   radioOwned: boolean;
@@ -122,8 +152,11 @@ export class Game {
     if (memory.terminalHardened) for (const i of L.interactables) if (i.kind === "secTerminal") i.time = 10;
     if (memory.panelsReinforced) for (const i of L.interactables) if (i.kind === "alarmPanel") i.time = 6;
     L.guards.forEach(g => this.spawnGuard(g));
+    // prep phase: the operator waits outside while a drone scouts
+    this.drones.push({ x: this.player.x, y: this.player.y, angle: this.player.angle, alive: true });
+    this.dronesLeft = 1; this.droneIdx = 0;
     this.log(`Perimeter breach: ${ent.name.toLowerCase()} (reconstructed)`, "dim");
-    this.handler("start", `You're in through the ${ent.name.toLowerCase()}. Extraction is the ${L.extraction.name.toLowerCase()}. Zero hour is midnight: shift change, double the guards. Don't be here for it.`);
+    this.handler("start", `Prep phase. Drone's out: find the target and mark guards with a click. When you're ready, breach through the ${ent.name.toLowerCase()}. Zero hour is midnight. Don't be here for it.`);
     this.recomputeLight();
   }
 
@@ -150,7 +183,24 @@ export class Game {
   }
   tileAt(x: number, y: number) { return this.level.tiles[Math.floor(y) * this.level.w + Math.floor(x)]; }
   outside(x: number, y: number) { return this.tileAt(x, y) === T.EXT; }
-  clock() { return clock(this.t); }
+  /** seconds since the action phase began (the mission clock) */
+  missionT() { return Math.max(0, this.t - this.prepEnd); }
+  inPrep() { return this.t < this.prepEnd; }
+  clock() { return clock(this.missionT() - (this.inPrep() ? this.prepEnd - this.t : 0) / 2); }
+  startAction() {
+    if (!this.inPrep()) return;
+    this.prepEnd = this.t;
+    this.droneIdx = -1;
+    this.sfx.play("uiConfirm");
+    this.handler("action", "Action phase. You're live.");
+    this.feed.push({ text: "ACTION PHASE", t: this.t, tone: "amber" });
+  }
+  eye() { return this.player.crouch ? EYE_CROUCH : EYE; }
+  /** where the operator's head is, including lean */
+  eyePos(): Vec {
+    const p = this.player, a = p.angle + Math.PI / 2;
+    return { x: p.x + Math.cos(a) * 0.45 * this.lean, y: p.y + Math.sin(a) * 0.45 * this.lean };
+  }
 
   spawnGuard(s: GuardSpec, reinforcement = false) {
     const hp = s.kind === "contractor" ? 150 : s.kind === "chief" ? 130 : 100;
@@ -159,7 +209,7 @@ export class Game {
       route: s.route, routeIdx: 0, post: !!s.post, postAngle: s.facing, path: [], pathGoal: null, suspicion: 0, target: null, lkp: null,
       search: [], stateT: 0, waitT: this.rng.next() * 2, reactT: 0, fireCd: 0, key: s.key, down: null, found: false, looted: false, seesPlayer: false,
       lastSeenT: -99, bark: null, radioAt: -1, lookBase: s.facing, panel: -1, lockerCheck: -1, radioJammedUntil: 0, speedMul: 1, reinforcement,
-      checkedLocker: new Set(), stuck: 0, shotsAtPlayer: 0, stepT: 0,
+      checkedLocker: new Set(), stuck: 0, shotsAtPlayer: 0, stepT: 0, markedUntil: 0, droneSus: 0,
     });
   }
 
@@ -199,7 +249,11 @@ export class Game {
     for (const c of this.level.cameras) if (c.state === "emp" && c.empUntil <= this.t) c.state = "active";
     if (this.lightDirty) this.recomputeLight();
     runScheduled(this);
-    if (!this.spectator) this.updatePlayer(dt);
+    if (!this.spectator && this.inPrep() && this.t >= this.prepEnd - dt) this.startAction();
+    if (!this.spectator) {
+      if (this.droneIdx >= 0 || this.camView >= 0) this.updateRemote(dt); else this.updatePlayer(dt);
+    }
+    this.updateBreaches(dt);
     this.updateHostage(dt);
     for (const g of this.guards) this.updateGuard(g, dt);
     this.updateCameras(dt);
@@ -218,6 +272,7 @@ export class Game {
 
   private updatePlayer(dt: number) {
     const p = this.player, L = this.level, inp = this.input;
+    if (this.inPrep()) return;
     p.fireCd = Math.max(0, p.fireCd - dt);
     this.thermalCd = Math.max(0, this.thermalCd - dt);
     if (p.reloadT > 0) {
@@ -232,11 +287,15 @@ export class Game {
       return;
     }
     let mx = (inp.right ? 1 : 0) - (inp.left ? 1 : 0), my = (inp.down ? 1 : 0) - (inp.up ? 1 : 0);
+    if (inp.mvx || inp.mvy) { mx = inp.mvx; my = inp.mvy; }
     const len = Math.hypot(mx, my); if (len) { mx /= len; my /= len; }
+    // lean (Q/E): head out past cover while the body stays behind it
+    const leanWant = (inp.leanR ? 1 : 0) - (inp.leanL ? 1 : 0);
+    this.lean += (leanWant - this.lean) * Math.min(1, dt * 12);
     const load = p.inv.reduce((a, id) => a + (LOOT[id]?.size ?? 0), 0);
     const burden = 1 - 0.18 * clamp(load / p.cap, 0, 1) * (load > p.cap / 2 ? 1 : 0.4);
     const sprinting = p.sprint && !p.crouch && len > 0;
-    const speed = (p.crouch ? 1.9 : sprinting ? 5.1 : 3.3) * burden;
+    const speed = (p.crouch ? 1.9 : sprinting ? 5.1 : 3.3) * burden * (inp.ads ? 0.6 : 1) * (Math.abs(this.lean) > 0.3 ? 0.7 : 1);
     p.moving = len > 0;
     if (len) {
       this.moveCircle(p, mx * speed * dt, my * speed * dt, 0.3, true);
@@ -252,7 +311,13 @@ export class Game {
     // weapons
     const w = WEAPONS[p.weapon];
     const auto = p.weapon === "smg";
-    if ((auto ? inp.fire : inp.firePressed) && p.fireCd <= 0 && p.reloadT <= 0) {
+    if (this.equipped !== "weapon") {
+      if (inp.firePressed) {
+        const kind = this.equipped;
+        this.throwGadget(kind);
+        if (!p.gadgets[kind]) this.equipped = "weapon";
+      }
+    } else if ((auto ? inp.fire : inp.firePressed) && p.fireCd <= 0 && p.reloadT <= 0) {
       const a = p.ammo[p.weapon];
       if (a.mag > 0) this.fire(w.id);
       else if (inp.firePressed) { this.sfx.play("dry"); if (a.res > 0) this.reload(); }
@@ -329,8 +394,10 @@ export class Game {
   private fire(id: WeaponId) {
     const p = this.player, w = WEAPONS[id], a = p.ammo[id];
     a.mag--; p.fireCd = 1 / w.rate; this.stats.shots++;
-    const moveSpread = p.moving ? (p.crouch ? 1.1 : 1.6) : 1;
-    const mx = p.x + Math.cos(p.angle) * 0.45, my = p.y + Math.sin(p.angle) * 0.45;
+    const moveSpread = (p.moving ? (p.crouch ? 1.1 : 1.6) : 1) * (this.input.ads ? 0.4 : 1) * (1 + this.recoil * 0.6);
+    const ep = this.eyePos();
+    const mx = ep.x + Math.cos(p.angle) * 0.3, my = ep.y + Math.sin(p.angle) * 0.3;
+    this.recoil = Math.min(1.5, this.recoil + (id === "smg" ? 0.18 : id === "shotgun" ? 0.9 : 0.45));
     for (let k = 0; k < w.pellets; k++) {
       const ang = p.angle + (this.rng.next() - 0.5) * 2 * w.spread * moveSpread;
       this.hitscan(mx, my, ang, w.range, w.damage, true, id);
@@ -349,50 +416,64 @@ export class Game {
     if (a.mag === 0 && a.res > 0) { p.reloadT = 0; this.reload(); p.reloadT += 0.2; }
   }
   muzzle: { x: number; y: number; t: number } | null = null;
+  impacts: { x: number; y: number; h: number; t: number; nx: number; ny: number }[] = [];
 
   private hitscan(x: number, y: number, ang: number, range: number, dmg: number, byPlayer: boolean, weapon?: WeaponId) {
     const wallD = castRay(this.level, x, y, ang, range);
+    // first person: the crosshair's pitch decides head, body, or over/under
+    const aimH = (t: number) => this.eye() + Math.tan(this.input.pitch) * t;
     const dx = Math.cos(ang), dy = Math.sin(ang);
-    let best = wallD; let hitG: Guard | null = null; let hitCam: Camera | null = null; let hitPlayer = false;
+    let best = wallD; let hitG: Guard | null = null; let hitCam: Camera | null = null; let hitPlayer = false; let headHit = false;
     if (byPlayer) {
       for (const g of this.guards) {
         if (g.down) continue;
-        const t = rayCircle(x, y, dx, dy, g.x, g.y, 0.38); if (t >= 0 && t < best) { best = t; hitG = g; }
+        const t = rayCircle(x, y, dx, dy, g.x, g.y, 0.36);
+        if (t >= 0 && t < best) { const h = aimH(t); if (h > 0.05 && h < 1.92) { best = t; hitG = g; headHit = h > 1.52; } }
       }
       for (const c of this.level.cameras) {
         if (c.state === "destroyed") continue;
-        const t = rayCircle(x, y, dx, dy, c.x, c.y, 0.3); if (t >= 0 && t < best) { best = t; hitG = null; hitCam = c; }
+        const t = rayCircle(x, y, dx, dy, c.x, c.y, 0.3); if (t >= 0 && t < best) { const h = aimH(t); if (h > 2.05 && h < 2.75) { best = t; hitG = null; hitCam = c; } }
       }
     } else {
       const p = this.player;
-      if (p.hidden < 0) { const t = rayCircle(x, y, dx, dy, p.x, p.y, 0.34); if (t >= 0 && t < best) { best = t; hitPlayer = true; } }
+      // a leaning operator only exposes their head
+      const leaning = Math.abs(this.lean) > 0.4, tp = leaning ? this.eyePos() : p;
+      if (p.hidden < 0) { const t = rayCircle(x, y, dx, dy, tp.x, tp.y, leaning ? 0.24 : 0.34); if (t >= 0 && t < best) { best = t; hitPlayer = true; } }
     }
     const ex = x + dx * best, ey = y + dy * best;
     this.tracers.push({ x1: x, y1: y, x2: ex, y2: ey, t: this.t, enemy: !byPlayer });
-    if (hitG) this.damageGuard(hitG, dmg, weapon);
+    if (hitG) this.damageGuard(hitG, headHit ? 400 : dmg, weapon, headHit);
     else if (hitCam) {
       hitCam.state = "destroyed"; this.stats.camerasDestroyed.push({ x: hitCam.x, y: hitCam.y });
       this.log(`Camera destroyed (${this.roomName(hitCam.x, hitCam.y)})`, "amber");
       this.sfx.play("glass", { x: hitCam.x, y: hitCam.y });
       for (let k = 0; k < 8; k++) this.particles.push({ x: ex, y: ey, vx: (this.rng.next() - 0.5) * 5, vy: (this.rng.next() - 0.5) * 5, life: 0.5, max: 0.5, kind: "spark", size: 0.05 });
       this.noise(hitCam.x, hitCam.y, 3, "glass");
-    } else if (hitPlayer) this.damagePlayer(dmg);
+    } else if (hitPlayer) this.damagePlayer(dmg * (this.player.crouch ? 0.9 : 1), { x, y });
     else if (best < range - 0.01) {
+      if (byPlayer && weapon === "shotgun" && best < 3.5) this.damageWall(ex + dx * 0.2, ey + dy * 0.2, dmg * 1.2);
+      this.impacts.push({ x: ex, y: ey, h: byPlayer ? aimH(best) : 1.3, t: this.t, nx: -dx, ny: -dy });
       for (let k = 0; k < 4; k++) this.particles.push({ x: ex - dx * 0.1, y: ey - dy * 0.1, vx: -dx * 2 + (this.rng.next() - 0.5) * 3, vy: -dy * 2 + (this.rng.next() - 0.5) * 3, life: 0.3, max: 0.3, kind: "spark", size: 0.04 });
       this.particles.push({ x: ex, y: ey, vx: 0, vy: 0, life: 1.2, max: 1.2, kind: "dust", size: 0.2 });
     }
   }
 
-  damageGuard(g: Guard, dmg: number, weapon?: WeaponId) {
+  damageGuard(g: Guard, dmg: number, weapon?: WeaponId, head = false) {
     const unaware = !g.seesPlayer && (g.state === "PATROL" || g.state === "RETURNING" || g.state === "SUSPICIOUS" || g.state === "INVESTIGATING");
-    const mult = unaware ? 2 : 1;
+    const mult = unaware && !head ? 2 : 1;
+    if (weapon) this.hitMarker = { t: this.t, head, kill: false };
     const armor = g.kind === "contractor" ? 0.8 : 1;
     g.hp -= dmg * mult * armor;
     for (let k = 0; k < 5; k++) this.particles.push({ x: g.x, y: g.y, vx: (this.rng.next() - 0.5) * 3, vy: (this.rng.next() - 0.5) * 3, life: 6, max: 6, kind: "blood", size: 0.09 });
     this.sfx.play("hit", { x: g.x, y: g.y });
     if (g.hp <= 0) {
       this.downGuard(g, "dead");
-      if (weapon) this.log(`${g.name ?? "Security officer"} killed (${this.roomName(g.x, g.y)})`, "red");
+      if (weapon) {
+        this.log(`${g.name ?? "Security officer"} killed (${this.roomName(g.x, g.y)})`, "red");
+        if (this.hitMarker) this.hitMarker.kill = true;
+        if (head) this.headshots++;
+        this.feed.push({ text: `${WEAPONS[weapon].short} ▸ ${g.name ?? (g.kind === "contractor" ? "Contractor" : "Guard " + (g.id + 1))}`, t: this.t, head, tone: "red" });
+      }
       return;
     }
     // survived: they know where the shot came from
@@ -409,8 +490,9 @@ export class Game {
     this.sfx.play(how === "dead" ? "bodyfall" : "ko", { x: g.x, y: g.y });
   }
 
-  damagePlayer(dmg: number) {
+  damagePlayer(dmg: number, from?: Vec) {
     const p = this.player;
+    if (from) this.damageDirs.push({ angle: Math.atan2(from.y - p.y, from.x - p.x), t: this.t });
     p.hp -= dmg; this.hurtFlash = 1; this.shake = Math.max(this.shake, 0.4);
     this.sfx.play("playerHit");
     if (p.hp < p.maxHp * 0.4) this.handler("lowhp", "You're hit. Break line of sight and get out.");
@@ -421,10 +503,136 @@ export class Game {
     }
   }
 
+  // ------------------------------------------------------------------------------------------ drones and camera feeds
+  /** 5: deploy a drone, jump into a parked one, or return to the operator */
+  toggleDrone() {
+    if (this.status !== "playing") return;
+    if (this.camView >= 0) this.camView = -1;
+    if (this.droneIdx >= 0) { if (!this.inPrep()) { this.droneIdx = -1; this.sfx.play("ui"); } return; }
+    const parked = this.drones.findIndex(d => d.alive);
+    if (parked >= 0) { this.droneIdx = parked; this.sfx.play("ui"); return; }
+    if (this.dronesLeft <= 0 || this.player.hidden >= 0) { this.sfx.play("denied"); return; }
+    this.dronesLeft--;
+    const p = this.player;
+    this.drones.push({ x: p.x + Math.cos(p.angle) * 0.4, y: p.y + Math.sin(p.angle) * 0.4, angle: p.angle, alive: true });
+    this.droneIdx = this.drones.length - 1;
+    this.sfx.play("throw");
+  }
+  /** V: watch the facility's own cameras once security control has been breached */
+  toggleCams(dir = 0) {
+    if (!this.feedsHacked || this.status !== "playing") { this.sfx.play("denied"); return; }
+    const live = this.level.cameras.map((c, i) => (c.state !== "destroyed" ? i : -1)).filter(i => i >= 0);
+    if (!live.length) return;
+    if (dir === 0) { this.camView = this.camView >= 0 ? -1 : live[0]; this.droneIdx = -1; this.sfx.play("ui"); return; }
+    const k = live.indexOf(this.camView);
+    this.camView = live[(k + dir + live.length) % live.length]; this.sfx.play("ui");
+  }
+  /** the viewpoint the player is currently looking through */
+  viewpoint(): { x: number; y: number; angle: number; h: number; kind: "operator" | "drone" | "camera" } {
+    if (this.droneIdx >= 0) { const d = this.drones[this.droneIdx]; return { x: d.x, y: d.y, angle: d.angle, h: 0.14, kind: "drone" }; }
+    if (this.camView >= 0) { const c = this.level.cameras[this.camView]; return { x: c.x, y: c.y, angle: c.angle, h: 2.5, kind: "camera" }; }
+    const e = this.eyePos(); return { x: e.x, y: e.y, angle: this.player.angle, h: this.eye(), kind: "operator" };
+  }
+  private updateRemote(dt: number) {
+    const inp = this.input, p = this.player;
+    p.moving = false; p.light = this.playerLight();
+    const want = Math.atan2(inp.mouseY - this.viewpoint().y, inp.mouseX - this.viewpoint().x);
+    if (this.droneIdx >= 0) {
+      const d = this.drones[this.droneIdx];
+      if (!d.alive) { this.droneIdx = -1; return; }
+      d.angle = want;
+      let mx = inp.mvx, my = inp.mvy;
+      if (!mx && !my) { mx = (inp.right ? 1 : 0) - (inp.left ? 1 : 0); my = (inp.down ? 1 : 0) - (inp.up ? 1 : 0); }
+      const len = Math.hypot(mx, my);
+      if (len) { this.moveCircle(d, (mx / len) * 4.2 * dt, (my / len) * 4.2 * dt, 0.16, false); if (Math.random() < dt * 8) this.sfx.play("droneWhir", { vol: 0.25 }); }
+      if (inp.firePressed) this.markAlong(d.x, d.y, d.angle, 14);
+    } else if (this.camView >= 0) {
+      const c = this.level.cameras[this.camView];
+      c.angle = want;
+      if (inp.firePressed) this.markAlong(c.x, c.y, c.angle, 12);
+    }
+  }
+  /** click while droning or on cams: tag the guard under the crosshair */
+  private markAlong(x: number, y: number, ang: number, range: number) {
+    const wall = castRay(this.level, x, y, ang, range);
+    const dx = Math.cos(ang), dy = Math.sin(ang);
+    let best: Guard | null = null, bt = wall;
+    for (const g of this.guards) {
+      if (g.down) continue;
+      const t = rayCircle(x, y, dx, dy, g.x, g.y, 0.55);
+      if (t >= 0 && t < bt) { bt = t; best = g; }
+    }
+    if (best) {
+      best.markedUntil = this.t + 20;
+      this.sfx.play("mark");
+      this.feed.push({ text: `MARKED ▸ ${best.name ?? (best.kind === "contractor" ? "Contractor" : "Guard " + (best.id + 1))}`, t: this.t, tone: "amber" });
+    } else this.sfx.play("denied");
+  }
+
+  // ------------------------------------------------------------------------------------------ breaching
+  /** stick a breach charge on the interior wall in front of you */
+  placeBreach() {
+    const p = this.player, L = this.level;
+    if (!p.gadgets.breach || p.hidden >= 0 || this.inPrep()) { this.sfx.play("denied"); return; }
+    for (let t = 0.2; t < 1.6; t += 0.1) {
+      const x = Math.floor(p.x + Math.cos(p.angle) * t), y = Math.floor(p.y + Math.sin(p.angle) * t);
+      const i = y * L.w + x;
+      const tile = L.tiles[i];
+      if (tile === T.FLOOR || tile === T.EXT || tile === T.PROP_LOW) continue;
+      if (tile !== T.WALL) break;
+      if (L.reinforced.has(i)) { this.toast = { text: "Reinforced wall. Charges won't go through", t: this.t }; this.sfx.play("denied"); return; }
+      if (this.breachCharges.some(b => b.tile === i)) return;
+      p.gadgets.breach! -= 1;
+      this.breachCharges.push({ x: p.x + Math.cos(p.angle) * (t - 0.15), y: p.y + Math.sin(p.angle) * (t - 0.15), tile: i, t: 2.4 });
+      this.sfx.play("breachArm");
+      return;
+    }
+    this.toast = { text: "Get closer to an interior wall", t: this.t }; this.sfx.play("denied");
+  }
+  private updateBreaches(dt: number) {
+    for (const b of this.breachCharges) {
+      b.t -= dt;
+      if (b.t > 0) { if (Math.floor(b.t * 3) !== Math.floor((b.t + dt) * 3)) this.sfx.play("hackTick", { x: b.x, y: b.y, vol: 0.7 }); continue; }
+      const L = this.level, tx = b.tile % L.w, ty = Math.floor(b.tile / L.w);
+      // blow the tile and its neighbour along the wall: a gap you can walk through
+      const vertical = L.tiles[(ty - 1) * L.w + tx] === T.WALL || L.tiles[(ty + 1) * L.w + tx] === T.WALL;
+      this.destroyWall(b.tile);
+      const n = vertical ? b.tile + L.w : b.tile + 1;
+      if (L.tiles[n] === T.WALL && !L.reinforced.has(n)) this.destroyWall(n);
+      this.sfx.play("explosion", { x: tx + 0.5, y: ty + 0.5 });
+      this.shake = Math.max(this.shake, dist(this.player.x, this.player.y, tx, ty) < 6 ? 0.8 : 0.3);
+      for (let k = 0; k < 30; k++) this.particles.push({ x: tx + 0.5, y: ty + 0.5, vx: (this.rng.next() - 0.5) * 9, vy: (this.rng.next() - 0.5) * 9, life: 1.4, max: 1.4, kind: k % 3 ? "dust" : "spark", size: 0.25 });
+      this.noise(tx + 0.5, ty + 0.5, 18, "explosion");
+      for (const g of this.guards) if (!g.down && dist(g.x, g.y, tx + 0.5, ty + 0.5) < 2.3) this.damageGuard(g, 90, "shotgun");
+      if (dist(this.player.x, this.player.y, tx + 0.5, ty + 0.5) < 1.6) this.damagePlayer(35, { x: tx + 0.5, y: ty + 0.5 });
+      this.breaches.push({ x: tx, y: ty });
+      this.log(`Wall breached with explosives (${this.roomName(tx + (vertical ? 1 : 0.5), ty + (vertical ? 0.5 : 1))})`, "red");
+    }
+    this.breachCharges = this.breachCharges.filter(b => b.t > 0);
+  }
+  damageWall(x: number, y: number, dmg: number) {
+    const L = this.level, i = Math.floor(y) * L.w + Math.floor(x);
+    if (L.tiles[i] !== T.WALL || L.reinforced.has(i)) return;
+    const hp = (L.wallHp.get(i) ?? 220) - dmg;
+    L.wallHp.set(i, hp);
+    L.version++;
+    if (hp <= 0) { this.destroyWall(i); this.breaches.push({ x: i % L.w, y: Math.floor(i / L.w) }); this.log(`Wall shot through (${this.roomName(x, y)})`, "amber"); }
+  }
+  private destroyWall(i: number) {
+    const L = this.level;
+    if (L.tiles[i] !== T.WALL) return;
+    L.tiles[i] = T.FLOOR;
+    for (const o of [1, -1, L.w, -L.w]) if (L.roomAt[i + o] >= 0) { L.roomAt[i] = L.roomAt[i + o]; break; }
+    L.wallHp.delete(i);
+    L.version++;
+    this.lightDirty = true;
+  }
+
   // ------------------------------------------------------------------------------------------ gadgets
   throwGadget(kind: GadgetId) {
     const p = this.player;
     if (this.status !== "playing" || p.hidden >= 0) return;
+    if (kind === "breach") return this.placeBreach();
     if (kind === "thermal") {
       if (!p.gadgets.thermal || this.thermalCd > 0) { this.sfx.play("denied"); return; }
       this.thermalUntil = this.t + 3; this.thermalCd = 20; this.sfx.play("thermal"); return;
@@ -479,9 +687,14 @@ export class Game {
   private interactTarget(): { kind: string; ref: any; d: number } | null {
     const p = this.player, L = this.level;
     let best: { kind: string; ref: any; d: number } | null = null;
+    // first person: prefer what the crosshair is on, not just whatever is nearest
     const consider = (kind: string, ref: any, x: number, y: number, maxD = 1.45) => {
       const d = dist(p.x, p.y, x, y);
-      if (d <= maxD && (!best || d < best.d)) best = { kind, ref, d };
+      if (d > maxD) return;
+      const a = Math.abs(angDiff(p.angle, Math.atan2(y - p.y, x - p.x)));
+      if (d > 0.55 && a > 1.5) return;
+      const score = d + a * 0.9;
+      if (!best || score < best.d) best = { kind, ref, d: score };
     };
     if (p.hidden >= 0) return { kind: "locker", ref: L.interactables[p.hidden], d: 0 };
     for (const g of this.guards) {
@@ -631,8 +844,9 @@ export class Game {
       case "secTerminal": {
         it.done = true; this.stats.looped = true;
         for (const c of this.level.cameras) if (c.state === "active" || c.state === "emp") c.state = "looped";
+        this.feedsHacked = true;
         this.log("Camera network compromised: feeds looping", "amber");
-        this.toast = { text: "Camera feeds looped", t: this.t };
+        this.toast = { text: "Cameras looped and yours. Press V to watch them", t: this.t };
         break;
       }
       case "alarmPanel": { it.done = true; this.stats.panels++; this.log(`Alarm panel disabled (${this.roomName(it.x, it.y)})`, "dim"); this.toast = { text: "Alarm panel cut", t: this.t }; break; }
@@ -765,7 +979,10 @@ export class Game {
 
     // ---- perception: player
     let seeAmt = 0;
-    if (p.hidden < 0 && !this.spectator) seeAmt = this.canSee(g, p.x, p.y, p.light, true);
+    if (p.hidden < 0 && !this.spectator) {
+      if (Math.abs(this.lean) > 0.4) { const e = this.eyePos(); seeAmt = this.canSee(g, e.x, e.y, p.light, true) * 0.6; }
+      else seeAmt = this.canSee(g, p.x, p.y, p.light, true);
+    }
     const kindMul = g.kind === "chief" ? 1.2 : g.kind === "contractor" ? 1.15 : 1;
     if (seeAmt > 0) {
       // detection builds over time: ~0.6s point blank in light, several seconds at the edge of vision
@@ -785,6 +1002,33 @@ export class Game {
     const wasSeeing = g.seesPlayer;
     g.seesPlayer = seeAmt > 0 && g.suspicion >= 1;
     if (g.seesPlayer) { g.lkp = { x: p.x, y: p.y }; g.lastSeenT = this.t; this.alertCalmT = 0; }
+
+    // ---- perception: drones (small, low, but a guard who looks at one knows what it is)
+    for (const d of this.drones) {
+      if (!d.alive || g.state === "COMBAT" && g.seesPlayer) continue;
+      const vis = this.canSee(g, d.x, d.y, Math.max(0.2, this.lightAt(d.x, d.y)) * 0.75, false);
+      if (vis > 0 && dist(g.x, g.y, d.x, d.y) < 7) {
+        g.droneSus = Math.min(1, g.droneSus + dt * (0.5 + vis * 1.2));
+        if (g.droneSus >= 1) {
+          g.angle += angDiff(g.angle, Math.atan2(d.y - g.y, d.x - g.x)) * Math.min(1, dt * 10);
+          if (g.fireCd <= 0) {
+            g.fireCd = 0.7;
+            if (!g.bark || g.bark.text !== "Drone!") this.bark(g, "Drone!");
+            this.sfx.play("shotEnemy", { x: g.x, y: g.y });
+            this.noise(g.x, g.y, 12, "shot");
+            if (this.rng.next() < 0.55) {
+              d.alive = false; this.dronesLost++;
+              if (this.drones[this.droneIdx] === d) this.droneIdx = -1;
+              this.sfx.play("glass", { x: d.x, y: d.y });
+              this.feed.push({ text: "DRONE DESTROYED", t: this.t, tone: "red" });
+              this.log(`Surveillance drone destroyed (${this.roomName(d.x, d.y)})`, "amber");
+              this.raise(1);
+              g.target = { x: d.x, y: d.y };
+            }
+          }
+        }
+      } else g.droneSus = Math.max(0, g.droneSus - dt * 0.3);
+    }
 
     // ---- perception: bodies
     if (g.state !== "COMBAT" && g.state !== "RAISING") {
@@ -874,7 +1118,7 @@ export class Game {
             const settle = Math.max(0, 0.16 - g.shotsAtPlayer * 0.05);
             const miss = (p.moving ? (p.sprint ? 0.2 : 0.13) : 0.07) + (d > 7 ? 0.05 : 0) + settle;
             g.shotsAtPlayer++;
-            this.hitscan(g.x + Math.cos(g.angle) * 0.4, g.y + Math.sin(g.angle) * 0.4, g.angle + (this.rng.next() - 0.5) * 2 * miss, 16, g.kind === "contractor" ? 22 : 16, false);
+            this.hitscan(g.x + Math.cos(g.angle) * 0.4, g.y + Math.sin(g.angle) * 0.4, g.angle + (this.rng.next() - 0.5) * 2 * (miss + (Math.abs(this.lean) > 0.5 ? 0.05 : 0)), 16, g.kind === "contractor" ? 22 : 16, false);
             this.sfx.play(g.kind === "contractor" ? "shotRifle" : "shotEnemy", { x: g.x, y: g.y });
             this.noise(g.x, g.y, 14, "shot");
             this.muzzleEnemy = { x: g.x + Math.cos(g.angle) * 0.45, y: g.y + Math.sin(g.angle) * 0.45, t: this.t };
@@ -1097,8 +1341,8 @@ export class Game {
     if (this.alert === 2 && this.alertCalmT > 50) { this.alert = 1; this.alertCalmT = 0; this.log("Search continues: intruder not located", "dim"); this.radio.push({ text: "No sign of them. Stay sharp, keep sweeping.", from: "Security control", t: this.t, kind: this.radioOwned ? "guard" : "overheard" }); }
     else if (this.alert === 1 && this.alertCalmT > 60 && !this.zeroHourPassed) { this.alert = 0; this.alertCalmT = 0; this.log("Search called off", "dim"); }
     // zero hour: shift change
-    if (!this.zeroHourPassed && this.t >= ZERO_HOUR - 60) this.handler("zh60", "Two minutes to zero hour. The next shift is already in the car park.");
-    if (!this.zeroHourPassed && this.t >= ZERO_HOUR) {
+    if (!this.zeroHourPassed && this.missionT() >= ZERO_HOUR - 60) this.handler("zh60", "Two minutes to zero hour. The next shift is already in the car park.");
+    if (!this.zeroHourPassed && this.missionT() >= ZERO_HOUR) {
       this.zeroHourPassed = true;
       this.log("00:00 shift change: second security team on site", "red");
       this.handler("zh", "Zero hour. The second shift is inside. Everything's harder from here. Get out.");
@@ -1119,7 +1363,7 @@ export class Game {
         this.shake = 1;
         for (let k = 0; k < 40; k++) this.particles.push({ x: this.charge.x, y: this.charge.y, vx: (this.rng.next() - 0.5) * 12, vy: (this.rng.next() - 0.5) * 12, life: 1.5, max: 1.5, kind: k % 3 ? "smoke" : "spark", size: 0.3 });
         this.log(`Explosion: ${this.roomName(this.charge.x, this.charge.y)} destroyed`, "red");
-        this.detonatedBefore0 = this.t < ZERO_HOUR;
+        this.detonatedBefore0 = this.missionT() < ZERO_HOUR;
         this.noise(this.charge.x, this.charge.y, 40, "explosion");
         this.lockdown("automatic fire systems");
         for (const g of this.guards) if (!g.down && dist(g.x, g.y, this.charge.x, this.charge.y) < 3) this.downGuard(g, "dead");
@@ -1149,6 +1393,9 @@ export class Game {
     }
     this.particles = this.particles.filter(p => p.life > 0).slice(-400);
     this.tracers = this.tracers.filter(t => this.t - t.t < 0.12);
+    this.feed = this.feed.filter(f => this.t - f.t < 6).slice(-5);
+    this.damageDirs = this.damageDirs.filter(d => this.t - d.t < 1.2);
+    this.recoil = Math.max(0, this.recoil - dt * 6);
     this.noises = this.noises.filter(n => this.t - n.t < 1);
     this.radio = this.radio.filter(r => this.t - r.t < 7);
   }
@@ -1221,7 +1468,7 @@ export class Game {
     const result: MissionResult = {
       outcome, objectiveDone, optionalsDone: opt, loot: [...this.player.inv], entry: this.entry, alarms: this.stats.alarms, lockdown: this.stats.lockdown,
       kills: this.stats.kills, kos: this.stats.kos, camerasDestroyed: this.stats.camerasDestroyed, camerasEmped: this.stats.camerasEmped,
-      loopedFeeds: this.stats.looped, panelsSabotaged: this.stats.panels, chief: this.stats.chief, explored: encodeExplored(this.explored),
+      loopedFeeds: this.stats.looped, panelsSabotaged: this.stats.panels, breaches: this.breaches, headshots: this.headshots, dronesLost: this.dronesLost, chief: this.stats.chief, explored: encodeExplored(this.explored),
       events: this.events, duration: this.t, zeroHourPassed: this.zeroHourPassed, shotsFired: this.stats.shots, hostageRescued: rescued, spotted: this.stats.spotted,
     };
     const cb = this.onEnd;

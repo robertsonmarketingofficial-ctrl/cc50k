@@ -1,6 +1,6 @@
 # BLACKSITE: ZERO HOUR
 
-A top-down tactical stealth extraction game for the browser. Get in, take what you came for, and get out
+A first-person tactical stealth extraction game for the browser, in the spirit of Rainbow Six Siege (with a little Valorant). Get in, take what you came for, and get out
 before midnight. Every facility remembers how you did it.
 
 ## Run it
@@ -19,20 +19,30 @@ Keyboard and mouse. Progress saves in the browser (localStorage).
 
 | Key | Action |
 |---|---|
-| WASD / arrows | Move |
-| Mouse | Aim |
-| Click | Shoot (hold for the SMG) |
-| Shift | Sprint (loud) |
-| C / Ctrl | Crouch (silent, harder to see) |
-| E | Interact, take down a guard from behind, hold to hack locks, safes and terminals |
+| Click the screen | Take control (mouse look) |
+| WASD | Move |
+| Mouse / Click / Right-click | Look / shoot / aim down sights |
+| Shift / C | Sprint / crouch |
+| Q / E | Lean left / right |
+| F | Interact, take down a guard from behind, hold to hack |
 | R | Reload |
-| 1 / 2, wheel | Switch weapon |
-| Q / right-click | Throw noisemaker |
-| G | Throw EMP (once unlocked) |
+| 1 / 2 | Primary / sidearm |
+| 3 / 4 | Equip gadget (breach charge, noisemaker, EMP), click to use |
+| G | Quick-throw noisemaker or EMP |
+| 5 | Drone: deploy, re-enter, return |
+| V | Watch hacked cameras (after breaching security control), A/D to switch |
 | T | Thermal pulse (once unlocked) |
-| Tab | Pack: loot, capacity, bonus objectives, drop items |
-| M | Live tactical map |
-| Esc | Pause |
+| Space | End the prep phase and breach |
+| Tab / M / Esc | Pack / map / pause |
+
+## Siege layer
+
+- **Prep phase**: every job starts with 30 seconds on a drone while your operator waits outside. Find the
+  objective and click guards to mark them (red outlines through walls, for 20s). Guards who spot a drone shoot it.
+- **Breaching**: breach charges blow walkable holes in interior walls; a shotgun chews through them too.
+  Outer walls and secure rooms are reinforced, and so is any wall you breached on a previous visit.
+- **Lean and headshots**: Q/E lean exposes only your head. Crosshair height matters: head-level shots are one-tap kills.
+- **Cams**: hack security control and you can watch (and mark from) their cameras.
 
 ## How it plays
 

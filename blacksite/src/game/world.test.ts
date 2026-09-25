@@ -6,7 +6,7 @@ import { applyResult, decodeExplored, encodeExplored, generateContracts, newSave
 const contract = (over: Partial<Contract> = {}): Contract => ({ id: "c1", facility: "halvorsen", type: "steal", title: "Steal the prototype", client: "x", brief: "x",
   targetItem: "obj_prototype", payout: 1400, rep: 180, optionals: [{ id: "ghost", label: "Ghost", bonus: 500 }], seed: 42, ...over });
 const result = (over: Partial<MissionResult> = {}): MissionResult => ({ outcome: "extracted", objectiveDone: true, optionalsDone: [], loot: ["obj_prototype"], entry: "dock",
-  alarms: 0, lockdown: false, kills: 0, kos: 0, camerasDestroyed: [], camerasEmped: 0, loopedFeeds: false, panelsSabotaged: 0, chief: "untouched", explored: "",
+  alarms: 0, lockdown: false, kills: 0, kos: 0, camerasDestroyed: [], camerasEmped: 0, breaches: [], headshots: 0, dronesLost: 0, loopedFeeds: false, panelsSabotaged: 0, chief: "untouched", explored: "",
   events: [{ time: 10, text: "Entry" }], duration: 300, zeroHourPassed: false, shotsFired: 0, hostageRescued: false, spotted: 0, ...over });
 
 describe("world memory", () => {

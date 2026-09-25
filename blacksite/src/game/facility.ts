@@ -531,8 +531,20 @@ export function generateLevel(opts: GenOptions): Level {
     guards.push({ x: loop[0].x, y: loop[0].y, route: loop, kind: "guard", key: 0, facing: 0 });
   }
 
+  // walls around secure rooms, the outer shell, and anything rebuilt after a breach are reinforced
+  const reinforced = new Set<number>();
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = idx(x, y);
+    if (tiles[i] !== T.WALL) continue;
+    if (x <= bx0 || x >= bx1 || y <= by0 || y >= by1) { reinforced.add(i); continue; }
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const r = roomAt[idx(x + dx, y + dy)];
+      if (r >= 0 && rooms[r].lock === 2) reinforced.add(i);
+    }
+  }
+  for (const v of memory.breachedWalls ?? []) reinforced.add(idx(Math.floor(v.x), Math.floor(v.y)));
   return { facility: contract.facility, seed: fac.seed, w, h, tiles, roomAt, rooms, doors, doorAt, lights, cameras, interactables, entrances,
-    extraction, guards, props, objectiveRoom, alarmPanels, hostage };
+    extraction, guards, props, objectiveRoom, alarmPanels, hostage, reinforced, wallHp: new Map(), version: 0 };
 }
 
 export function favouriteEntrance(m: FacilityMemory): EntranceId | undefined {

@@ -25,9 +25,10 @@ export default function SettingsPanel({ settings, onChange, onClose, onReset }: 
         {toggle("hints", "Control hints", "Show the controls bar at the start of each mission")}
         <div className="label" style={{ marginTop: 18 }}>Controls</div>
         <div className="dim" style={{ fontSize: 13.5, lineHeight: 1.9 }}>
-          <span className="kbd">WASD</span> move · <span className="kbd">Shift</span> sprint · <span className="kbd">C</span> crouch · <span className="kbd">E</span> interact, takedown, hold to hack ·
-          {" "}<span className="kbd">Mouse</span> aim · <span className="kbd">Click</span> shoot · <span className="kbd">R</span> reload · <span className="kbd">1</span>/<span className="kbd">2</span> weapons ·
-          {" "}<span className="kbd">Q</span> noisemaker · <span className="kbd">G</span> EMP · <span className="kbd">T</span> thermal · <span className="kbd">Tab</span> pack · <span className="kbd">M</span> map · <span className="kbd">Esc</span> pause
+          <span className="kbd">WASD</span> move · <span className="kbd">Mouse</span> look · <span className="kbd">Click</span> shoot · <span className="kbd">RMB</span> aim down sights · <span className="kbd">Shift</span> sprint · <span className="kbd">C</span> crouch ·
+          {" "}<span className="kbd">Q</span>/<span className="kbd">E</span> lean · <span className="kbd">F</span> interact, takedown, hold to hack · <span className="kbd">R</span> reload · <span className="kbd">1</span>/<span className="kbd">2</span> weapons ·
+          {" "}<span className="kbd">3</span>/<span className="kbd">4</span> gadgets · <span className="kbd">G</span> quick throw · <span className="kbd">5</span> drone · <span className="kbd">V</span> hacked cameras · <span className="kbd">T</span> thermal ·
+          {" "}<span className="kbd">Space</span> end prep · <span className="kbd">Tab</span> pack · <span className="kbd">M</span> map · <span className="kbd">Esc</span> pause
         </div>
         {onReset && (
           <>

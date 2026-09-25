@@ -201,6 +201,11 @@ export class AudioEngine implements Sfx {
       case "zeroHour": for (let k = 0; k < 4; k++) Tn(k % 2 ? 147 : 196, "sine", 1.2, 0.18, undefined, k * 0.7); break;
       case "explosion": N(2.2, "lowpass", 900, 0.5, 1.6, 0.005, true, 60); Tn(60, "sine", 1.2, 1, 25); N(0.6, "lowpass", 3000, 0.5, 0.8); break;
       case "extract": Tn(196, "sine", 1.6, 0.14); Tn(294, "sine", 1.6, 0.12, undefined, 0.15); Tn(392, "sine", 1.8, 0.1, undefined, 0.3); Tn(587, "sine", 2.2, 0.08, undefined, 0.45); N(1.8, "lowpass", 300, 0.7, 0.3, 0.3, true); break;
+      case "droneWhir": Tn(180 + Math.random() * 40, "sawtooth", 0.12, 0.03, 220); break;
+      case "mark": Tn(1568, "sine", 0.06, 0.1); Tn(2093, "sine", 0.12, 0.08, undefined, 0.06); break;
+      case "breachArm": Tn(1320, "square", 0.05, 0.06); N(0.12, "bandpass", 700, 2, 0.4); break;
+      case "hitmarker": N(0.03, "highpass", 4000, 0.7, 0.25); Tn(2600, "square", 0.02, 0.04); break;
+      case "headshot": Tn(3200, "sine", 0.08, 0.12); N(0.05, "highpass", 5000, 0.7, 0.3); break;
       case "death": Tn(220, "sawtooth", 1.6, 0.12, 55); N(1.5, "lowpass", 500, 0.7, 0.5, 0.01, true, 80); break;
     }
   }

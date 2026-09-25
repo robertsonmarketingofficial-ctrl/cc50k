@@ -115,8 +115,8 @@ function LoadoutTab({ save, persist }: { save: SaveGame; persist: (s: SaveGame) 
   const primaries: (WeaponId | null)[] = [null, "smg", "shotgun"];
   return (
     <>
-      <h2 className="h1">Loadout</h2>
-      <p className="sub">The suppressed P9 always comes with you. Pick one primary and two gadgets. Consumables are restocked for free before every job.</p>
+      <h2 className="h1">Operator · Wraith</h2>
+      <p className="sub">The suppressed P9 always comes with you, plus two drones for recon. Pick one primary and two gadgets for slots 3 and 4. Consumables are restocked for free before every job.</p>
       <div className="label" style={{ margin: "8px 0" }}>Sidearm</div>
       <WeaponCard id="pistol" on disabled={false} onClick={() => {}} />
       <div className="label" style={{ margin: "22px 0 8px" }}>Primary</div>
@@ -129,7 +129,7 @@ function LoadoutTab({ save, persist }: { save: SaveGame; persist: (s: SaveGame) 
           <WeaponCard key={p} id={p} on={lo.primary === p} disabled={!save.owned.includes(p)} onClick={() => set({ primary: p })} />
         ))}
       </div>
-      <div className="label" style={{ margin: "22px 0 8px" }}>Gadgets <span className="dim2">({lo.gadgets.length}/2)</span></div>
+      <div className="label" style={{ margin: "22px 0 8px" }}>Gadgets, slots 3 and 4 <span className="dim2">({lo.gadgets.length}/2)</span></div>
       <div className="slots">
         {(Object.keys(GADGETS) as GadgetId[]).map(g => {
           const owned = save.owned.includes(g);
@@ -151,6 +151,9 @@ function LoadoutTab({ save, persist }: { save: SaveGame; persist: (s: SaveGame) 
         <button className={"slot" + (lo.pack ? " on" : "")} disabled={!save.owned.includes("pack")} onClick={() => set({ pack: !lo.pack })}>
           <h4>Field pack</h4><p>Carry {packCapacity(true)} units instead of {packCapacity(false)}. A full pack slows you down.</p>
         </button>
+        <div className="slot on" style={{ cursor: "default" }}>
+          <h4>Drones ×2</h4><p>Always carried. You start every job in the prep phase driving one. Guards shoot drones they spot.</p>
+        </div>
         <div className={"slot" + (save.owned.includes("bypass") ? " on" : "")} style={{ cursor: "default", opacity: save.owned.includes("bypass") ? 1 : 0.35 }}>
           <h4>Bypass kit</h4><p>{save.owned.includes("bypass") ? "Always carried. Locks, terminals and safes go 2.5× faster." : "Not owned. Buy it from the supplier."}</p>
         </div>
