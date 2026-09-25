@@ -18,6 +18,7 @@ to book sales calls for the agency.
 | 09 | [Cheapest setup](09_cheapest_setup.md) | The ~$700/month way to run 50k/month, and what you trade for it |
 | 10 | [Beginner's guide](10_beginners_guide.md) | **New to all this? Start here.** Every step and every term explained from zero |
 | 11 | [Automation audit](11_automation_audit.md) | Which manual jobs are worth automating, ranked, with time saved and risks |
+| 12 | [Revenue opportunities](12_opportunities.md) | Researched opportunities with evidence: LSA missed-call billing, AI visibility, accessibility |
 
 ## The whole system on one page
 

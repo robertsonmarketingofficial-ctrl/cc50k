@@ -39,6 +39,7 @@ SIGNALS = {
     "reviews_widget": ["trustindex", "elfsight", "birdeye", "podium", "reviewsonmywebsite", "grade.us", "nicejob"],
     "email_capture": ["klaviyo", "mailchimp", "omnisend", "privy", "attentive", "postscript", "justuno"],
     "klaviyo": ["klaviyo"],
+    "google_guaranteed": ["google guaranteed", "google-guaranteed", "google screened", "google-screened"],
 }
 PLATFORMS = [("shopify", "cdn.shopify.com"), ("wordpress", "wp-content"), ("wix", "wixstatic.com"),
              ("squarespace", "squarespace"), ("webflow", "webflow"), ("godaddy", "godaddy"),
@@ -112,7 +113,7 @@ def score(f: dict, niche: str, this_year: int | None = None) -> tuple[int, list[
     """(fit score 0-10, reasons, audit notes). Notes on absences say 'verify' for the Revenue Leak Audit."""
     this_year = this_year or date.today().year
     pts, why, notes = 0, [], []
-    spends = f["google_ads_seen"] or f["meta_pixel_seen"]
+    spends = f["google_ads_seen"] or f["meta_pixel_seen"] or f["google_guaranteed_seen"]
     old = f["copyright_year"] and f["copyright_year"] <= this_year - 2
     if niche == "ecom":
         if f["platform"] == "shopify":
@@ -145,6 +146,9 @@ def icebreaker(f: dict, company: str, niche: str, this_year: int | None = None) 
     """One line from a fact that is present on the page, or '' so the template's fallback is used."""
     this_year = this_year or date.today().year
     name = company or "your team"
+    if niche == "local" and f["google_guaranteed_seen"]:
+        return (f"Saw the Google Guaranteed badge on {name}'s site. Since October 1, Google bills Local Services Ads "
+                f"for missed calls over 20 seconds, so every unanswered call now costs twice.")
     if niche == "local" and f["google_ads_seen"]:
         return f"Looks like {name} has put money into Google Ads, so every missed call is a lead you've already paid for."
     if niche == "ecom" and f["meta_pixel_seen"] and f["platform"] == "shopify":
@@ -157,7 +161,7 @@ def icebreaker(f: dict, company: str, niche: str, this_year: int | None = None) 
 
 
 OUT_COLS = ["site_status", "site_url", "platform", "fit_score", "fit_tier", "fit_reasons", "audit_notes", "icebreaker",
-            "google_ads_seen", "meta_pixel_seen", "booking_seen", "chat_or_text_seen", "call_tracking_seen",
+            "google_ads_seen", "google_guaranteed_seen", "meta_pixel_seen", "booking_seen", "chat_or_text_seen", "call_tracking_seen",
             "email_capture_seen", "click_to_call", "mobile_ready", "copyright_year", "agency_credit", "site_title", "response_ms"]
 
 

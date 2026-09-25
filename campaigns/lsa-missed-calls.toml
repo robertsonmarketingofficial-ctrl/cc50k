@@ -1,0 +1,63 @@
+# Google Local Services Ads advertisers (plumbing, HVAC, electrical, roofing, pest control, garage door, locksmith...).
+# Why now: from October 1, 2026 Google bills LSA advertisers for missed calls during business hours when the
+# caller stays on the line 20+ seconds (voicemail doesn't stop the clock), and for qualifying follow-up calls.
+# Source the list from the public LSA listings for a city + category (see playbook/12_opportunities.md), so every
+# lead on it really runs LSA, which is what makes the first line true. Don't send this to anyone else.
+#
+# The copy says "since October 1": don't send it before then.
+#
+# Never "test" a prospect by calling their LSA number: that call can be billed to them. Use the number on their
+# own website or Google Business Profile.
+
+name = "lsa-missed-calls"
+description = "Owners of home service businesses running Google Local Services Ads"
+
+[[steps]]
+day = 0
+  [[steps.variants]]
+  subject = "google now bills {{company|you}} for missed calls"
+  body = """
+Hi {{first_name|there}},
+
+Saw {{company|your business}} on Google's Local Services Ads for {{city|your area}}. Heads up in case your rep didn't flag it: since October 1, Google charges for missed calls during business hours once the caller waits 20 seconds, voicemail included.
+
+So a call you can't pick up is now a lead you pay for and still lose.
+
+We set up instant text-back and after-hours answering for {{industry|home service}} companies so those calls get caught. [[ONE-LINE PROOF]]
+
+Worth a 10-minute look at your missed-call numbers?
+"""
+
+  [[steps.variants]]
+  subject = "your LSA missed calls"
+  body = """
+Hi {{first_name|there}},
+
+{{icebreaker|Quick one about your Google Local Services Ads.}}
+
+Since October 1, Google bills for missed calls that ring 20+ seconds during business hours. Industry studies put missed calls for {{industry|service}} shops at around 1 in 4, mostly while the crew is on jobs.
+
+We fix that in a week: every missed call gets a text back in seconds, and after-hours calls get answered. [[ONE-LINE PROOF]]
+
+Want me to show you how many calls you missed last month? It's in your LSA dashboard, takes 2 minutes.
+"""
+
+[[steps]]
+day = 3
+  [[steps.variants]]
+  subject = ""
+  body = """
+Hi {{first_name|there}}, quick follow-up.
+
+Easy way to check if this matters: open your Local Services Ads leads, filter to "missed", and multiply by your lead cost. If that number is bigger than [[YOUR MONTHLY PRICE]], we should talk.
+"""
+
+[[steps]]
+day = 8
+  [[steps.variants]]
+  subject = ""
+  body = """
+{{first_name|Hi}}, last note from me.
+
+If your team already answers every call, ignore this. If not, reply "missed" and I'll send a one-page setup plan for {{company|your business}}.
+"""

@@ -67,6 +67,13 @@ class AnalyseTests(unittest.TestCase):
         self.assertEqual(pts, 8)                               # shopify 3 + no email tool 3 + meta 2
         self.assertIn("Meta ads", icebreaker(f, "Glow", "ecom", this_year=2026))
 
+    def test_google_guaranteed_badge(self):
+        f = analyse('<img alt="Google Guaranteed" src="badge.png"><a href="tel:1">Call</a>', "https://x.test/", this_year=2026)
+        self.assertTrue(f["google_guaranteed_seen"])
+        pts, why, _ = score(f, "local", this_year=2026)
+        self.assertIn("pays for ads", why)
+        self.assertIn("Local Services Ads", icebreaker(f, "X Plumbing", "local", this_year=2026))
+
     def test_nothing_to_say_means_blank(self):
         f = analyse("<html><body>hello</body></html>", "https://x.test/", this_year=2026)
         self.assertEqual(icebreaker(f, "X", "local", this_year=2026), "")
