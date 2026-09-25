@@ -95,7 +95,7 @@ export default function MainMenu(props: { canContinue: boolean; save: SaveGame |
         )}
       </div>
       <div className="menu-foot">
-        {s ? `${Object.values(s.facilities).filter(m => m.visits > 0).length} of ${Object.keys(FACILITIES).length} sites know your work` : "Headphones recommended"} · v1.0
+        {s ? `${Object.values(s.facilities).filter(m => m.visits > 0).length} of ${s.story.includes("file") ? Object.keys(FACILITIES).length : 3} sites know your work` : "Headphones recommended"} · v1.0
       </div>
     </div>
   );

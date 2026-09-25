@@ -396,7 +396,7 @@ export class Renderer {
       ctx.beginPath(); ctx.arc(px, py, R, d.angle - 0.22, d.angle + 0.22); ctx.stroke();
       if (d.cam) { ctx.fillStyle = `rgba(${col},0.8)`; ctx.beginPath(); ctx.arc(px + Math.cos(d.angle) * (R + 12), py + Math.sin(d.angle) * (R + 12), 3, 0, 7); ctx.fill(); }
     }
-    if (g.objectiveDone || g.hostageOk()) {
+    if (g.objectiveDone || g.hostageOk() || g.alert === 3 || g.zeroHourPassed) {
       const ex = g.level.extraction;
       const sx = wx(ex.x), sy = wy(ex.y);
       const margin = Math.round(H * 0.14);

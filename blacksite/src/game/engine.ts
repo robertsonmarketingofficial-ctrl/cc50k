@@ -128,7 +128,11 @@ export class Game {
   }
 
   // ------------------------------------------------------------------------------------------ helpers
-  log(text: string, tone?: "red" | "amber" | "dim") { this.events.push({ time: this.t, text, tone }); }
+  log(text: string, tone?: "red" | "amber" | "dim") {
+    // the same thing happening again within a few seconds is one incident line, not five
+    if (this.events.some(e => e.text === text && this.t - e.time < 20)) return;
+    this.events.push({ time: this.t, text, tone });
+  }
   handler(key: string, text: string) {
     if (this.handlerSaid.has(key)) return;
     this.handlerSaid.add(key);
@@ -257,7 +261,9 @@ export class Game {
     this.handleInteract(dt);
     // extraction zone
     const ex = L.extraction;
-    if (dist(p.x, p.y, ex.x, ex.y) < ex.r) {
+    // on a rescue, the van waits for the detainee
+    const waitingForHostage = !!this.hostage && this.hostage.state === "following" && dist(this.hostage.x, this.hostage.y, ex.x, ex.y) > ex.r + 1.5;
+    if (dist(p.x, p.y, ex.x, ex.y) < ex.r && !waitingForHostage) {
       this.extractT += dt;
       if (this.extractT >= 3) this.finish("extracted");
     } else this.extractT = 0;
@@ -500,7 +506,9 @@ export class Game {
     const p = this.player;
     if (!tgt) {
       const ex = this.level.extraction;
-      if (dist(p.x, p.y, ex.x, ex.y) < ex.r) this.prompt = { text: this.objectiveDone || this.hostageOk() ? "Extracting…" : "Extracting without the objective…", key: "", progress: this.extractT / 3, hold: false, tone: this.objectiveDone ? undefined : "amber" };
+      const lag = this.hostage && this.hostage.state === "following" && dist(this.hostage.x, this.hostage.y, ex.x, ex.y) > ex.r + 1.5;
+      if (dist(p.x, p.y, ex.x, ex.y) < ex.r && lag) this.prompt = { text: "Waiting for the detainee to reach the van", key: "", progress: 0, hold: false, tone: "amber" };
+      else if (dist(p.x, p.y, ex.x, ex.y) < ex.r) this.prompt = { text: this.objectiveDone || this.hostageOk() ? "Extracting…" : "Extracting without the objective…", key: "", progress: this.extractT / 3, hold: false, tone: this.objectiveDone ? undefined : "amber" };
       return;
     }
     const prog = this.holding?.id === this.keyOf(tgt) ? this.holding.t : 0;
@@ -683,7 +691,7 @@ export class Game {
   }
 
   // ------------------------------------------------------------------------------------------ hostage
-  hostageOk() { return !!this.hostage && this.hostage.state === "following" && dist(this.hostage.x, this.hostage.y, this.player.x, this.player.y) < 4; }
+  hostageOk() { return !!this.hostage && this.hostage.state === "following" && dist(this.hostage.x, this.hostage.y, this.player.x, this.player.y) < 6; }
   private updateHostage(dt: number) {
     const h = this.hostage; if (!h || h.state !== "following") return;
     const p = this.player;
@@ -693,7 +701,7 @@ export class Game {
     if (h.repathT <= 0 || !h.path.length) { h.repathT = 0.5; h.path = findPath(this.level, h.x, h.y, p.x, p.y, 2) ?? []; }
     const n = h.path[0]; if (!n) return;
     const nd = dist(h.x, h.y, n.x, n.y);
-    const sp = (p.crouch ? 1.8 : 2.5) * dt;
+    const sp = (p.crouch ? 1.8 : d > 5 ? 3.3 : 2.9) * dt;
     if (nd < 0.15) { h.path.shift(); return; }
     this.openDoorsOnWay(h, n);
     this.moveCircle(h, ((n.x - h.x) / nd) * Math.min(sp, nd), ((n.y - h.y) / nd) * Math.min(sp, nd), 0.28, false);
@@ -1195,7 +1203,7 @@ export class Game {
     if (this.ended) return;
     this.ended = true;
     if (outcome === "extracted") {
-      this.log(`Unauthorised exit via ${this.level.extraction.name.toLowerCase()}`, this.objectiveDone ? "red" : "amber");
+      this.log(`Unauthorised exit via ${this.level.extraction.name.toLowerCase()}`, this.objectiveDone || this.hostageOk() ? "red" : "amber");
       this.sfx.play("extract");
     }
     if (outcome === "killed") this.sfx.play("death");
