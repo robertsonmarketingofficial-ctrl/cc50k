@@ -17,6 +17,7 @@ to book sales calls for the agency.
 | 08 | [Software guide](08_software_guide.md) | Every `coldflow` command and how the pieces fit |
 | 09 | [Cheapest setup](09_cheapest_setup.md) | The ~$700/month way to run 50k/month, and what you trade for it |
 | 10 | [Beginner's guide](10_beginners_guide.md) | **New to all this? Start here.** Every step and every term explained from zero |
+| 11 | [Automation audit](11_automation_audit.md) | Which manual jobs are worth automating, ranked, with time saved and risks |
 
 ## The whole system on one page
 

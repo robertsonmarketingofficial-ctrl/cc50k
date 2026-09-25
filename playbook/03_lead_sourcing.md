@@ -67,6 +67,9 @@ Entries can be full emails or bare domains (a domain blocks the whole company).
 - Better: an `icebreaker` column with one specific, true line per lead (a new location, a recent
   review, what their site says). Generate it with an enrichment tool or AI, **spot-check 50** before
   a batch goes out, and keep it under 25 words.
+- Built in: `leads enrich` (below) visits each lead's homepage once and writes an icebreaker only
+  from something actually on the page (a Google Ads tag, Meta pixel on a Shopify store, an old
+  footer year). Leads with nothing to say get a blank, so the template fallback is used.
 - Never fake familiarity ("loved your post!") that isn't true. It hurts replies and trust.
 
 ## 7. Weekly lead workflow
@@ -74,6 +77,26 @@ Entries can be full emails or bare domains (a domain blocks the whole company).
 | Day | Task |
 |---|---|
 | Mon | Pull next week's lists (~4,000-4,500 leads for Phase 1) |
-| Tue | Verify and enrich; spot-check icebreakers |
-| Wed | `leads import` → `campaign enroll <name> --limit N` |
+| Tue | Verify, then `leads enrich verified.csv --niche local --min-score 3`; spot-check 20 icebreakers |
+| Wed | `leads import verified_enriched.csv` → `campaign enroll <name> --limit N` |
 | Fri | Check `status`: the "waiting" count should cover at least 5 sending days |
+
+## 8. Website enrichment (`leads enrich`)
+
+Replaces the manual "open each site, judge fit, write a line" step (~1 min per business by hand).
+
+```
+python -m coldflow leads enrich verified.csv --niche local --min-score 3
+```
+
+- Visits each homepage once (12 at a time, ~5-10 min per 4,000 leads), shared by every lead at that business.
+  Uses the `Website` column, or the email domain when there is none (never Gmail/Outlook etc.).
+- Adds columns: `fit_score` (0-10), `fit_tier` (A ≥6, B 3-5, C <3), `fit_reasons`, `icebreaker`,
+  `audit_notes`, `platform`, the signals it saw (Google Ads, Meta pixel, booking, chat, call tracking,
+  email tool), `copyright_year`, `agency_credit` (who built the site: a rival agency to note).
+- `--niche`: `local` (Missed-Call Rescue / lead handling), `ecom` (Shopify + email flows), `b2b`.
+- `--min-score N` moves leads below N (and unreachable sites) to `<name>_low_fit.csv` instead of deleting them.
+- `audit_notes` is your Revenue Leak Audit prep: paste it into the audit and check each "verify" item by hand.
+
+Limits: it reads the page source only. Widgets loaded later by JavaScript can be missed, so "not seen"
+never goes into an email, only into the score and your internal notes. Always spot-check before sending.

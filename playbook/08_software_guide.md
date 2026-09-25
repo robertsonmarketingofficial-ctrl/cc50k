@@ -59,6 +59,7 @@ IMAP ──replies──► events (reply / interested / not_interested / unsubs
 | `inboxes import FILE` | Add or update inboxes (email, from_name, provider, password_env, daily_cap, warmup_start) |
 | `inboxes list` / `env` | Caps and health / print env var lines for passwords |
 | `inboxes pause\|resume\|retire --email X` | Manual control |
+| `leads enrich FILE [--niche local\|ecom\|b2b] [--min-score N] [--out F]` | Visit each lead's website; add fit score, tier, icebreaker and audit notes (run before import) |
 | `leads import FILE [--source tag]` | Clean and import leads |
 | `leads suppress FILE [--reason]` | Add emails or domains to the do-not-contact list; stops in-flight sequences |
 | `leads export [OUT] [--status new]` | Clean CSV for a hosted sending tool |

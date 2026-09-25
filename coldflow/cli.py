@@ -60,6 +60,13 @@ def cmd_leads(args, settings, conn):
     elif args.action == "suppress":
         n = leads.import_suppression(conn, args.file, args.reason)
         print(f"Added {n:,} entries to the do-not-contact list.")
+    elif args.action == "enrich":
+        from .enrich import enrich_csv
+        src = Path(args.file)
+        out = Path(args.out) if args.out else src.with_name(src.stem + "_enriched.csv")
+        stats = enrich_csv(src, out, niche=args.niche, workers=args.workers, min_score=args.min_score)
+        _print_counter(f"Enriched {src} -> {out}", stats)
+        print("Next: open the file, spot-check 20 icebreakers against the real sites, then run `leads import` on it.")
     elif args.action == "export":
         out = Path(args.file or settings.path("reports") / "clean_leads.csv")
         print(f"Exported {report.export_leads(conn, out, args.status):,} leads to {out}")
@@ -276,10 +283,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(fn=cmd_plan)
 
     p = sub.add_parser("leads", help="import leads / manage the do-not-contact list")
-    p.add_argument("action", choices=["import", "suppress", "export", "count"])
+    p.add_argument("action", choices=["import", "suppress", "enrich", "export", "count"])
     p.add_argument("file", nargs="?", help="CSV to import, or output path for export")
     p.add_argument("--source")
     p.add_argument("--status", default="new", help="lead status to export (default: new)")
+    p.add_argument("--out", help="enrich: output CSV (default: <file>_enriched.csv)")
+    p.add_argument("--niche", choices=["local", "ecom", "b2b"], default="local", help="enrich: which offers to score fit against")
+    p.add_argument("--workers", type=int, default=12, help="enrich: websites checked at once")
+    p.add_argument("--min-score", type=int, default=0, help="enrich: send leads scoring below this to *_low_fit.csv")
     p.add_argument("--reason", default="manual")
     p.set_defaults(fn=cmd_leads)
 
@@ -358,7 +369,7 @@ def main(argv: list[str] | None = None) -> None:
         return args.fn(args, settings, None)
     conn = db.connect(settings.path("db"))
     try:
-        needs_file = {"leads": ("import", "suppress"), "inboxes": ("import",)}
+        needs_file = {"leads": ("import", "suppress", "enrich"), "inboxes": ("import",)}
         if args.cmd in needs_file and args.action in needs_file[args.cmd] and not args.file:
             sys.exit(f"{args.cmd} {args.action} needs a file")
         if args.cmd == "inboxes" and args.action in ("pause", "resume", "retire") and not args.email:
