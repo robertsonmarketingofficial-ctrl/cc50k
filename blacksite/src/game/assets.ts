@@ -33,13 +33,15 @@ export function loadAssets(onProgress?: (f: number) => void): Promise<Assets> {
   let done = 0; const total = 5 + 6 + 6 * 3 + 1;
   const tick = <T>(p: Promise<T>) => p.then(v => { done++; onProgress?.(done / total); return v; });
   // packed builds (single-file artifact) ship binaries as base64 in assets/models.js
-  const packed = (globalThis as { __PACKED?: Record<string, string> }).__PACKED;
+  let packed = (globalThis as { __PACKED?: Record<string, string> }).__PACKED;
   const blobUrl = (key: string) => { const b64 = packed![key]; const bin = atob(b64); const u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i); return URL.createObjectURL(new Blob([u8])); };
   const src = (file: string) => (packed && packed[file] ? blobUrl(file) : assetBase() + file);
   const glb = (f: string) => tick(gl.loadAsync(src(f + ".glb")));
   const tex = (f: string, srgb: boolean) => tick(tl.loadAsync(assetBase() + "tex/" + f + ".jpg").then(t => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; if (srgb) t.colorSpace = THREE.SRGBColorSpace; return t; }));
   const set = async (id: TexId): Promise<PBRSet> => ({ map: await tex(id + "_color", true), normalMap: await tex(id + "_normal", false), roughnessMap: await tex(id + "_rough", false) });
   cache = (async () => {
+    // packed builds publish models as one JSON file (static hosts may refuse .glb, and CSP blocks extra scripts)
+    if (!packed) packed = await fetch(assetBase() + "models.json").then(r => (r.ok ? r.json() : undefined)).catch(() => undefined);
     const [arms, m4, locomotion] = await Promise.all([glb("ak47"), glb("m4a1"), glb("locomotion")]); const eotech = m4;
     const chars = await Promise.all((Object.keys(CHAR_FILES) as CharacterId[]).map(async k => [k, await glb(CHAR_FILES[k])] as const));
     const texIds: TexId[] = ["plaster", "brick", "paving", "concrete", "asphalt", "metal"];

@@ -28,12 +28,12 @@ export default function GameView(props: GameViewProps) {
   const [ready, setReady] = useState(!!getAssets());
   const [pct, setPct] = useState(0);
   const [failed, setFailed] = useState(false);
-  useEffect(() => { if (ready) return; loadAssets(f => setPct(f)).then(() => setReady(true)).catch(() => setFailed(true)); }, [ready]);
+  useEffect(() => { if (ready) return; loadAssets(f => setPct(f)).then(() => setReady(true)).catch(e => { console.warn("assets failed, using built-in models", e); setFailed(true); setTimeout(() => setReady(true), 400); }); }, [ready]);
   if (ready) return <GameViewInner {...props} />;
   return (
     <div className="screen boot"><div className="loading-assets">
-      <div className="label">{failed ? "Couldn't load assets" : "Deploying"}</div>
-      <div className="h1" style={{ fontSize: 28, margin: "8px 0 14px" }}>{failed ? "Check your connection and try again" : "Loading field assets"}</div>
+      <div className="label">{failed ? "Using built-in models" : "Deploying"}</div>
+      <div className="h1" style={{ fontSize: 28, margin: "8px 0 14px" }}>{failed ? "Field assets unavailable" : "Loading field assets"}</div>
       {!failed && <div className="load-bar"><i style={{ width: `${Math.round(pct * 100)}%` }} /></div>}
     </div></div>
   );

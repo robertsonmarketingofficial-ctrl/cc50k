@@ -331,3 +331,7 @@ button { font: inherit; color: inherit; }
 .loading-assets{max-width:520px;margin:30vh auto 0;text-align:center}
 .load-bar{height:6px;background:rgba(255,255,255,.1);border-radius:3px;overflow:hidden}
 .load-bar i{display:block;height:100%;background:var(--amber,#f0b43c);transition:width .2s}
+
+.gun-photo{height:92px;margin:-4px -4px 10px;border-radius:6px;background:radial-gradient(ellipse at 50% 60%,rgba(255,255,255,.09),rgba(255,255,255,0) 70%),rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.gun-photo img{max-height:100%;max-width:100%;object-fit:contain;filter:drop-shadow(0 6px 8px rgba(0,0,0,.45))}
+.slot:disabled .gun-photo img{filter:grayscale(1) brightness(.55)}

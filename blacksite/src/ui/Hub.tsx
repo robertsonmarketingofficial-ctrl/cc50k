@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { getAssets, loadAssets } from "../game/assets";
+import { gunPhoto } from "../game/gunPhotos";
 import { audio } from "../game/audio";
 import { FACILITIES, GADGETS, MISSION_TEXT, REP_TIERS, TIER_NAMES, UNLOCKS, WEAPONS, packCapacity, repTier } from "../game/catalog";
 import { generateLevel } from "../game/facility";
@@ -112,6 +114,8 @@ function LoadoutTab({ save, persist }: { save: SaveGame; persist: (s: SaveGame) 
     if (next.length > 2) next = next.slice(-2);
     set({ gadgets: next });
   };
+  const [real, setReal] = useState(!!getAssets());
+  useEffect(() => { if (!real) loadAssets().then(() => setReal(true)).catch(() => {}); }, [real]);
   const primaries = (Object.values(WEAPONS)).filter(w => w.slot === "primary");
   const secondaries = (Object.values(WEAPONS)).filter(w => w.slot === "secondary");
   return (
@@ -123,11 +127,11 @@ function LoadoutTab({ save, persist }: { save: SaveGame; persist: (s: SaveGame) 
         <button className={"slot" + (lo.primary === null ? " on" : "")} onClick={() => set({ primary: null })}>
           <h4>No primary</h4><p>Travel light. Faster on your feet, nothing loud to reach for.</p>
         </button>
-        {primaries.map(w => <WeaponCard key={w.id} id={w.id} on={lo.primary === w.id} disabled={!save.owned.includes(w.id)} onClick={() => set({ primary: w.id })} />)}
+        {primaries.map(w => <WeaponCard key={w.id} id={w.id} on={lo.primary === w.id} disabled={!save.owned.includes(w.id)} onClick={() => set({ primary: w.id })} real={real} />)}
       </div>
       <div className="label" style={{ margin: "22px 0 8px" }}>Secondary</div>
       <div className="slots">
-        {secondaries.map(w => <WeaponCard key={w.id} id={w.id} on={(lo.secondary ?? "p226") === w.id} disabled={!save.owned.includes(w.id)} onClick={() => set({ secondary: w.id })} />)}
+        {secondaries.map(w => <WeaponCard key={w.id} id={w.id} on={(lo.secondary ?? "p226") === w.id} disabled={!save.owned.includes(w.id)} onClick={() => set({ secondary: w.id })} real={real} />)}
       </div>
       <div className="label" style={{ margin: "22px 0 8px" }}>Gadgets, slots 3 and 4 <span className="dim2">({lo.gadgets.length}/2)</span></div>
       <div className="slots">
@@ -162,11 +166,13 @@ function LoadoutTab({ save, persist }: { save: SaveGame; persist: (s: SaveGame) 
   );
 }
 
-function WeaponCard({ id, on, disabled, onClick }: { id: WeaponId; on: boolean; disabled: boolean; onClick: () => void }) {
+function WeaponCard({ id, on, disabled, onClick, real }: { id: WeaponId; on: boolean; disabled: boolean; onClick: () => void; real?: boolean }) {
   const w = WEAPONS[id];
+  const photo = useMemo(() => gunPhoto(id, !!real), [id, real]);
   const bar = (v: number) => <div className="meter"><i style={{ width: `${Math.min(100, v * 100)}%` }} /></div>;
   return (
     <button className={"slot" + (on ? " on" : "")} disabled={disabled} onClick={onClick}>
+      <div className="gun-photo">{photo ? <img src={photo} alt={w.name} /> : null}</div>
       <div className="between"><h4>{w.name}</h4><span className="label">{w.class}</span></div>
       <p>{disabled ? "Locked: available from the supplier." : w.desc}</p>
       <div className="stats-mini">

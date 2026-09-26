@@ -15,7 +15,6 @@ ${fontImport ? `<link rel="stylesheet" href=${fontImport[1]}>` : ""}
 <style>${cssBody}</style>
 <div id="root"></div>
 <noscript>BLACKSITE: ZERO HOUR needs JavaScript.</noscript>
-<script src="assets/models.js"></script>
 <script type="module">${js.replace(/<\/script/g, "<\\/script")}</script>
 `;
 mkdirSync("dist-single", { recursive: true });
@@ -26,5 +25,5 @@ console.log("dist-single/blacksite.html", (page.length / 1024).toFixed(0) + " KB
 const pub = "public/assets", packed = {};
 for (const f of readdirSync(pub)) if (/\.(glb|hdr)$/.test(f) && f !== "eotech.glb") packed[f] = readFileSync(join(pub, f)).toString("base64");
 mkdirSync("dist-single/assets", { recursive: true });
-writeFileSync("dist-single/assets/models.js", "window.__PACKED=" + JSON.stringify(packed) + ";");
-console.log("dist-single/assets/models.js", (JSON.stringify(packed).length / 1048576).toFixed(1) + " MB");
+writeFileSync("dist-single/assets/models.json", JSON.stringify(packed));
+console.log("dist-single/assets/models.json", (JSON.stringify(packed).length / 1048576).toFixed(1) + " MB");

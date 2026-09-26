@@ -323,13 +323,20 @@ export class WorldBuilder {
     }
   }
 
+  /** exterior parapet height: alternate sections step up so the building doesn't read as one long box */
+  extTop(x: number, y: number) {
+    const EH = this.th.exteriorH;
+    const band = (Math.floor((x + 3) / 9) + Math.floor((y + 3) / 9)) % 2;
+    return EH + (band ? 1.9 : 0);
+  }
+
   private isExteriorWall(x: number, y: number) {
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) if (this.tile(x + dx, y + dy) === T.EXT) return true;
     return false;
   }
 
   private walls(b: (k: string) => Batch) {
-    const L = this.L, IH = this.th.interiorH, EH = this.th.exteriorH;
+    const L = this.L, IH = this.th.interiorH;
     const style = this.th.style;
     const roomOf = (x: number, y: number) => { const r = L.roomAt[y * L.w + x]; return r >= 0 ? L.rooms[r] : null; };
     for (let y = 0; y < L.h; y++) for (let x = 0; x < L.w; x++) {
@@ -339,7 +346,7 @@ export class WorldBuilder {
       const ext = this.isExteriorWall(x, y);
       const hard = L.reinforced.has(i) && !ext;
       const dmg = 1 - Math.max(0, L.wallHp.get(i) ?? 220) / 220;
-      const top = ext ? EH : IH;
+      const top = ext ? this.extTop(x, y) : IH;
       const sides: [number, number, number[][], number[]][] = [
         [1, 0, [[x + 1, 0, y + 1], [x + 1, 0, y]], [1, 0, 0]],
         [-1, 0, [[x, 0, y], [x, 0, y + 1]], [-1, 0, 0]],
@@ -378,6 +385,15 @@ export class WorldBuilder {
         if (!plain && this.th.interior.dado !== "none") { face(0.14, 1.18, "dado"); strip(1.18, 1.26, 0.035, style === "border" ? "wood" : "trim"); face(1.26, IH, wallKey); }
         else { face(0.14, IH, plain && style === "border" ? "trim" : wallKey); }
       }
+      // stepped massing: where a taller facade section meets a lower one, close the side above the lower parapet
+      if (ext) for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nt = this.tile(x + dx, y + dy);
+        if ((nt !== T.WALL && nt !== T.DOOR) || !this.isExteriorWall(x + dx, y + dy)) continue;
+        const lower = this.extTop(x + dx, y + dy); if (lower >= top - 0.01) continue;
+        const ex = dx > 0 ? x + 1 : dx < 0 ? x : null, ez = dy > 0 ? y + 1 : dy < 0 ? y : null;
+        if (ex !== null) b("extWall").quad([ex, lower, y + (dx > 0 ? 1 : 0)], [ex, lower, y + (dx > 0 ? 0 : 1)], [ex, top, y + (dx > 0 ? 0 : 1)], [ex, top, y + (dx > 0 ? 1 : 0)], [dx, 0, 0]);
+        else if (ez !== null) b("extWall").quad([x + (dy > 0 ? 0 : 1), lower, ez], [x + (dy > 0 ? 1 : 0), lower, ez], [x + (dy > 0 ? 1 : 0), top, ez], [x + (dy > 0 ? 0 : 1), top, ez], [0, 0, dy]);
+      }
       // cap
       if (this.bullnose) this.bullnose(b, x, y, ext, top);
       b(ext ? "extWall" : "intWall").quad([x, top, y], [x, top, y + 1], [x + 1, top, y + 1], [x + 1, top, y], [0, 1, 0]);
@@ -395,17 +411,17 @@ export class WorldBuilder {
   }
 
   private doorway(b: (k: string) => Batch, x: number, y: number) {
-    const L = this.L, IH = this.th.interiorH, EH = this.th.exteriorH;
+    const L = this.L, IH = this.th.interiorH;
     const d = L.doors[L.doorAt[y * L.w + x]];
     const alongX = !d.vertical; // wall runs along x
     const cx = x + 0.5, cz = y + 0.5;
     const outer = d.rooms.includes(-1);
-    const top = outer ? EH : IH;
+    const top = outer ? this.extTop(x, y) : IH;
     // pointed arch lintel through the wall thickness
     const pts: [number, number][] = [[-0.5, IH], ...archPts(0.5, 2.22, 0.5).reverse().map(([px, py]) => [px, py] as [number, number]), [0.5, IH]];
     // archPts goes +x -> -x; reversed goes -x -> +x; outline: (-0.5,IH) -> (-0.5,2.22) ... (0.5,2.22) -> (0.5,IH)
     b("trim").geo(extrude(pts, 1), place(cx, cz, alongX));
-    if (outer) b("extWall").geo(box(1, EH - IH, 1, cx, (EH + IH) / 2, cz, alongX ? 0 : Math.PI / 2));
+    if (outer) b("extWall").geo(box(1, top - IH, 1, cx, (top + IH) / 2, cz, alongX ? 0 : Math.PI / 2));
     // soffit cap
     b(outer ? "extWall" : "intWall").quad([x, top, y], [x, top, y + 1], [x + 1, top, y + 1], [x + 1, top, y], [0, 1, 0]);
     // threshold
@@ -834,6 +850,14 @@ export class WorldBuilder {
         // wall face must be straight here (neighbours along the wall are wall too)
         const alongX = dx === 0;
         const coord = alongX ? x : y;
+        if (coord % 4 === 0 && this.tile(x + (alongX ? 1 : 0), y + (alongX ? 0 : 1)) === T.WALL && this.tile(x - (alongX ? 1 : 0), y - (alongX ? 0 : 1)) === T.WALL && !nearDoor(x, y, 1) && !(Math.abs(mainDoor.x - x) <= 3 && Math.abs(mainDoor.y - y) <= 3)) {
+          // blind horseshoe arch: carved frame with a stucco panel set into the wall
+          const fx0 = x + 0.5 + dx * 0.5, fz0 = y + 0.5 + dy * 0.5;
+          const hole: [number, number][] = [[-0.36, 0], [0.36, 0], ...archPts(0.36, 1.55, 0.42)];
+          const mm = (off: number) => place(fx0 + dx * off, fz0 + dy * off, alongX, 0.85);
+          b("trim").geo(extrude([[-0.52, -0.08], [0.52, -0.08], [0.52, 2.2], [-0.52, 2.2]], 0.07, [[...hole].reverse()]), mm(0.035));
+          b("stucco").geo(extrude(hole, 0.015), mm(0.008));
+        }
         if (coord % 4 !== 2) continue;
         if (this.tile(x + (alongX ? 1 : 0), y + (alongX ? 0 : 1)) === T.EXT || this.tile(x - (alongX ? 1 : 0), y - (alongX ? 0 : 1)) === T.EXT) continue;
         if (Math.abs(mainDoor.x - x) <= 3 && Math.abs(mainDoor.y - y) <= 3) continue;
