@@ -643,21 +643,22 @@ function windy<T extends THREE.Material>(m: T): T {
   m.customProgramCacheKey = () => "windy";
   return m;
 }
+const palmCache: { bark?: THREE.Texture; leaf?: THREE.Texture } = {};
 export function palmTree(h = 7, seed = 1): THREE.Group {
   const g = new THREE.Group();
   const r = (i: number) => { const x = Math.sin(seed * 91.7 + i * 12.9898) * 43758.5453; return x - Math.floor(x); };
   const bend = new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0.2 * (r(1) - 0.5), h * 0.35, 0.2 * (r(2) - 0.5)), new THREE.Vector3(0.6 * (r(3) - 0.5), h * 0.7, 0.5 * (r(4) - 0.5)), new THREE.Vector3(0.9 * (r(5) - 0.5), h, 0.7 * (r(6) - 0.5))]);
-  const barkTex = (() => { const c = document.createElement("canvas"); c.width = 64; c.height = 256; const x = c.getContext("2d")!; x.fillStyle = "#6e5a44"; x.fillRect(0, 0, 64, 256);
+  const barkTex = palmCache.bark ??= (() => { const c = document.createElement("canvas"); c.width = 64; c.height = 256; const x = c.getContext("2d")!; x.fillStyle = "#6e5a44"; x.fillRect(0, 0, 64, 256);
     for (let y = 0; y < 256; y += 10) { x.fillStyle = "#4e3f30"; x.beginPath(); x.moveTo(0, y); x.lineTo(64, y + 4); x.lineTo(64, y + 7); x.lineTo(0, y + 3); x.fill(); x.fillStyle = "#8a7458"; x.fillRect(0, y + 5, 64, 2); }
     const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(2, h * 1.4); return t; })();
   const trunk = new THREE.Mesh(new THREE.TubeGeometry(bend, 24, 0.17, 10), new THREE.MeshStandardMaterial({ map: barkTex, roughness: 0.95 }));
   trunk.castShadow = true; trunk.receiveShadow = true; g.add(trunk);
   const top = bend.getPoint(1);
-  const leafTex = (() => { const c = document.createElement("canvas"); c.width = 256; c.height = 64; const x = c.getContext("2d")!;
+  const leafTex = palmCache.leaf ??= (() => { const c = document.createElement("canvas"); c.width = 256; c.height = 64; const x = c.getContext("2d")!;
     x.strokeStyle = "#3a4a1c"; x.lineWidth = 3; x.beginPath(); x.moveTo(0, 32); x.lineTo(256, 32); x.stroke();
     for (let i = 4; i < 250; i += 6) { const len = 28 * Math.sin((i / 256) * Math.PI) + 4; x.strokeStyle = i % 12 ? "#4d6a24" : "#5f7c2c"; x.lineWidth = 3; x.beginPath(); x.moveTo(i, 32); x.lineTo(i + 10, 32 - len); x.stroke(); x.beginPath(); x.moveTo(i, 32); x.lineTo(i + 10, 32 + len); x.stroke(); }
     const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })();
-  const leafMat = windy(new THREE.MeshStandardMaterial({ map: leafTex, alphaTest: 0.4, alphaToCoverage: true, transparent: false, side: THREE.DoubleSide, roughness: 0.7 }));
+  const leafMat = new THREE.MeshStandardMaterial({ map: leafTex, alphaTest: 0.4, alphaToCoverage: true, transparent: false, side: THREE.DoubleSide, roughness: 0.7 }); void windy; // static props are merged into one mesh, so no per-tree sway
   const deadMat = new THREE.MeshStandardMaterial({ map: leafTex, alphaTest: 0.4, alphaToCoverage: true, side: THREE.DoubleSide, roughness: 0.9, color: 0xb08850 });
   const frond = (len: number, droop: number, m: THREE.Material, yaw: number, tilt: number) => {
     const geo = new THREE.PlaneGeometry(len, 0.75, 14, 1);

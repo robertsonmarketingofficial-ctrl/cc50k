@@ -110,7 +110,7 @@ export function buildRigVM(assets: Assets, id: WeaponId): RigVM {
   const idle = mixer.clipAction(clip("idle")); idle.play();
   const fire = mixer.clipAction(clip("fire")); fire.setLoop(THREE.LoopOnce, 1); fire.clampWhenFinished = false;
   const reload = mixer.clipAction(clip("reload_empty")); reload.setLoop(THREE.LoopOnce, 1);
-  const hip = new THREE.Vector3(0.08, -0.05, 0.035);
+  const hip = new THREE.Vector3(0.05, -0.035, -0.01);
   // calibrated so the iron sights (AK notch + post, M4 aperture + post) sit on the crosshair
   const ads = id === "ak12" ? new THREE.Vector3(-0.017, -0.011, 0.02) : new THREE.Vector3(-0.026, 0.006, 0.02);
   const adsRot = id === "ak12" ? new THREE.Euler(0, -0.08, 0) : new THREE.Euler(-0.1, -0.1, 0);

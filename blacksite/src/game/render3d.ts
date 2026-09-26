@@ -20,6 +20,7 @@ import { THEMES, type Theme } from "./theme";
 import type { Settings, WeaponId } from "./types";
 import { T } from "./types";
 import { resample, WorldBuilder, type WorldBuild } from "./world3d";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { getAssets } from "./assets";
 import { buildRigVM, EnemyActor, type RigVM } from "./actors";
 
@@ -123,6 +124,33 @@ function cloudLayer(): THREE.Mesh {
   return m;
 }
 
+/** merge every static prop under `root` (except level batches that carry bake/occl) into one mesh per material */
+function freezeStatic(root: THREE.Object3D) {
+  root.updateMatrixWorld(true);
+  const groups = new Map<string, { mat: THREE.Material; geos: THREE.BufferGeometry[]; cast: boolean }>();
+  const sig = (m: THREE.Material) => { const s = m as THREE.MeshStandardMaterial & { customProgramCacheKey?: () => string };
+    return [m.type, s.color?.getHex(), s.emissive?.getHex(), s.emissiveIntensity, s.roughness, s.metalness, s.map?.uuid, s.normalMap?.uuid, s.alphaMap?.uuid, m.transparent, m.side, m.alphaTest, m.opacity, m.onBeforeCompile === THREE.Material.prototype.onBeforeCompile ? "" : m.uuid, (s as { wireframe?: boolean }).wireframe].join("|"); };
+  const drop: THREE.Mesh[] = [];
+  root.traverse(o => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh || m.userData.dynamic || (m as THREE.SkinnedMesh).isSkinnedMesh || Array.isArray(m.material) || m.geometry.attributes.bake || m.onBeforeRender !== THREE.Object3D.prototype.onBeforeRender) return;
+    let g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone();
+    for (const k of Object.keys(g.attributes)) if (!["position", "normal", "uv"].includes(k)) g.deleteAttribute(k);
+    if (!g.attributes.normal) g.computeVertexNormals();
+    if (!g.attributes.uv) g.setAttribute("uv", new THREE.BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
+    g.morphAttributes = {};
+    g.applyMatrix4(m.matrixWorld);
+    const k = sig(m.material); const e = groups.get(k) ?? { mat: m.material, geos: [], cast: false }; e.geos.push(g); e.cast ||= m.castShadow; groups.set(k, e);
+    drop.push(m);
+  });
+  for (const m of drop) m.parent?.remove(m);
+  for (const e of groups.values()) {
+    const merged = mergeGeometries(e.geos, false); if (!merged) continue;
+    const mesh = new THREE.Mesh(merged, e.mat); mesh.castShadow = e.cast; mesh.receiveShadow = true; mesh.matrixAutoUpdate = false;
+    root.add(mesh);
+  }
+}
+
 /** display-space grade: gentle S-curve, saturation, warm highlights / cool shadows, vignette */
 const GradeShader = {
   uniforms: { tDiffuse: { value: null as THREE.Texture | null }, uWarm: { value: 1.0 } },
@@ -147,7 +175,7 @@ export class FPRenderer {
   scene = new THREE.Scene();
   camera = new THREE.PerspectiveCamera(78, 16 / 9, 0.05, 2500);
   vmScene = new THREE.Scene();
-  vmCamera = new THREE.PerspectiveCamera(66, 16 / 9, 0.01, 5);
+  vmCamera = new THREE.PerspectiveCamera(60, 16 / 9, 0.01, 5);
   composer: EffectComposer | null = null;
   gtao: GTAOPass | null = null;
   private vmPass: RenderPass | null = null;
@@ -188,13 +216,15 @@ export class FPRenderer {
   private exposure = 1;
   lookDelta = { x: 0, y: 0 };
   exposureSnap = false;
+  /** ambient occlusion + bloom: off by default, they cost more than they add on most GPUs */
+  highQuality = new URLSearchParams(location.search).has("hq");
   extraction!: THREE.Group;
 
   constructor(canvas: HTMLCanvasElement, game: Game, settings: Settings) {
     this.canvas = canvas; this.game = game; this.settings = settings;
     this.theme = THEMES[game.level.facility];
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+    this.renderer.setPixelRatio(1);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = this.theme.exposure;
@@ -245,7 +275,7 @@ export class FPRenderer {
     const c = new THREE.Vector3(L.w / 2, 0, L.h / 2 - 4);
     this.sun.position.copy(c).addScaledVector(this.sunDir, 120); this.sun.target.position.copy(c);
     this.sun.castShadow = true;
-    const S = this.sun.shadow; S.mapSize.set(4096, 4096);
+    const S = this.sun.shadow; S.mapSize.set(2048, 2048);
     const half = Math.max(L.w, L.h + 20) / 2 + 12;
     const cam = S.camera as THREE.OrthographicCamera; cam.left = -half; cam.right = half; cam.top = half; cam.bottom = -half; cam.near = 10; cam.far = 300;
     S.bias = -0.0003; S.normalBias = 0.035; S.radius = 2.5;
@@ -255,18 +285,20 @@ export class FPRenderer {
   private setupComposer() {
     if (!this.settings.effects) { this.composer = null; return; }
     const w = Math.max(1, this.canvas.clientWidth), h = Math.max(1, this.canvas.clientHeight);
-    const rt = new THREE.WebGLRenderTarget(w, h, { type: THREE.HalfFloatType, samples: 4 });
+    const rt = new THREE.WebGLRenderTarget(w, h, { type: THREE.HalfFloatType, samples: this.highQuality ? 4 : 2 });
     const comp = new EffectComposer(this.renderer, rt);
     comp.addPass(new RenderPass(this.scene, this.camera));
-    const gtao = new GTAOPass(this.scene, this.camera, w, h);
-    gtao.output = GTAOPass.OUTPUT.Default;
-    gtao.blendIntensity = 0.6;
-    gtao.updateGtaoMaterial({ radius: 2.2, distanceExponent: 1.0, thickness: 5.0, scale: 3.4, samples: 16, distanceFallOff: 1.0 });
-    gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 2, samples: 12 });
-    comp.addPass(gtao); this.gtao = gtao;
+    if (this.highQuality) {
+      const gtao = new GTAOPass(this.scene, this.camera, w, h);
+      gtao.output = GTAOPass.OUTPUT.Default;
+      gtao.blendIntensity = 0.6;
+      gtao.updateGtaoMaterial({ radius: 2.2, distanceExponent: 1.0, thickness: 5.0, scale: 3.4, samples: 16, distanceFallOff: 1.0 });
+      gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 2, samples: 12 });
+      comp.addPass(gtao); this.gtao = gtao;
+    }
     const vmPass = new RenderPass(this.vmScene, this.vmCamera); vmPass.clear = false; vmPass.clearDepth = true; this.vmPass = vmPass;
     comp.addPass(vmPass);
-    comp.addPass(new UnrealBloomPass(new THREE.Vector2(w, h), 0.18, 0.35, 3.0));
+    if (this.highQuality) comp.addPass(new UnrealBloomPass(new THREE.Vector2(w, h), 0.18, 0.35, 3.0));
     comp.addPass(new OutputPass());
     comp.addPass(new ShaderPass(GradeShader));
     this.composer = comp;
@@ -285,12 +317,14 @@ export class FPRenderer {
     const L = this.game.level;
     this.builder = new WorldBuilder(L, this.theme, this.game.lightmap, this.lightBase);
     this.world = this.builder.build();
+    freezeStatic(this.world.root);
     this.scene.add(this.world.root);
     this.lightVersion = this.game.lightVersion; this.levelVersion = L.version;
 
     // lanterns for every light in the simulation (they go dark when shot or cut)
     const IH = this.theme.interiorH;
     const lanternFrame = M.brass();
+    const fixtures = new THREE.Group();
     for (const l of L.lights) {
       const glow = new THREE.MeshStandardMaterial({ color: 0xffe6c0, emissive: new THREE.Color(l.color), emissiveIntensity: 1.6, roughness: 0.4 });
       const g = new THREE.Group();
@@ -305,7 +339,7 @@ export class FPRenderer {
         const cap = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.26, 6), iron); cap.position.y = 4.39; g.add(cap);
         const fin = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 6), iron); fin.position.y = 4.55; g.add(fin);
         g.traverse(o => { o.castShadow = true; });
-        g.position.set(l.x, 0, l.y); this.scene.add(g); this.fixtureMeshes.push({ mesh: lamp, id: l.id });
+        lamp.userData.dynamic = true; g.position.set(l.x, 0, l.y); fixtures.add(g); this.fixtureMeshes.push({ mesh: lamp, id: l.id });
         continue;
       }
       // Moroccan brass lantern on a chain: amber glass panes in a solid frame, pierced cap
@@ -315,9 +349,11 @@ export class FPRenderer {
       for (const [y, r] of [[IH - 0.52, 0.16], [IH - 0.88, 0.12]]) { const ring = new THREE.Mesh(new THREE.TorusGeometry(r, 0.012, 6, 16), lanternFrame); ring.rotation.x = Math.PI / 2; ring.position.y = y; g.add(ring); }
       const top = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.18, 0.2, 8), lanternFrame); top.position.y = IH - 0.43; g.add(top);
       const bottom = new THREE.Mesh(new THREE.ConeGeometry(0.11, 0.12, 8), lanternFrame); bottom.rotation.x = Math.PI; bottom.position.y = IH - 0.93; g.add(bottom);
-      g.position.set(l.x, 0, l.y); this.scene.add(g);
+      body.userData.dynamic = true; g.position.set(l.x, 0, l.y); fixtures.add(g);
       this.fixtureMeshes.push({ mesh: body, id: l.id });
     }
+
+    freezeStatic(fixtures); this.scene.add(fixtures);
 
     // doors: studded cedar
     const doorMat = new THREE.MeshStandardMaterial({ map: cedar().map, normalMap: cedar().normalMap, roughness: 0.6 });
@@ -386,9 +422,9 @@ export class FPRenderer {
       }
     }
     // light pools under the nearest lanterns (the baked light map carries the rest)
-    for (let i = 0; i < 4; i++) { const pl = new THREE.PointLight(new THREE.Color(this.theme.lampColor), 0, 7, 2); this.scene.add(pl); this.pools.push(pl); }
+    for (let i = 0; i < 2; i++) { const pl = new THREE.PointLight(new THREE.Color(this.theme.lampColor), 0, 7, 2); this.scene.add(pl); this.pools.push(pl); }
     // guard flashlights (only in dark rooms or when searching)
-    for (let i = 0; i < 3; i++) { const s = new THREE.SpotLight(0xfff1d6, 0, 14, 0.36, 0.5, 1.3); this.scene.add(s, s.target); this.spots.push(s); }
+    for (let i = 0; i < 1; i++) { const s = new THREE.SpotLight(0xfff1d6, 0, 14, 0.36, 0.5, 1.3); this.scene.add(s, s.target); this.spots.push(s); }
 
     // floating dust motes: soft sprites drifting in the air around the camera, catching the light
     {
@@ -439,8 +475,19 @@ export class FPRenderer {
     }
   }
 
+  private perf = { acc: 0, n: 0, scale: 1 };
+  /** dynamic resolution: if frames run long, render fewer pixels so input stays responsive */
+  private adaptResolution(dt: number) {
+    const P = this.perf; P.acc += dt; P.n++;
+    if (P.acc < 1.5) return;
+    const avg = P.acc / P.n; P.acc = 0; P.n = 0;
+    const next = avg > 1 / 45 ? Math.max(0.6, P.scale - 0.1) : avg < 1 / 70 ? Math.min(1, P.scale + 0.05) : P.scale;
+    if (next !== P.scale) { P.scale = next; this.renderer.setPixelRatio(next); this.composer?.setPixelRatio(next); }
+  }
+
   draw(dt: number) {
     const g = this.game, L = g.level, p = g.player;
+    if (!this.exposureSnap) this.adaptResolution(dt);
     this.resize();
     if (!this.canvas.clientWidth) return;
     if (L.version !== this.levelVersion) this.rebuildWalls();
@@ -740,7 +787,7 @@ export class FPRenderer {
     const breathe = Math.sin(g.t * 1.6) * 0.0015 * k;
     const pos = r.hip.clone().lerp(r.ads, this.adsT);
     r.root.position.set(pos.x + bx - this.sway.x * k + st * 0.02, pos.y - by + breathe + this.sway.y * k - st * 0.035, pos.z + g.recoil * 0.03);
-    r.root.rotation.set(r.adsRot.x * this.adsT + g.recoil * 0.06 - st * 0.25, r.adsRot.y * this.adsT - this.sway.x * 1.5 * k + st * 0.9, -g.lean * 0.1 + st * 0.35);
+    r.root.rotation.set(r.adsRot.x * this.adsT + g.recoil * 0.06 - st * 0.18, r.adsRot.y * this.adsT - this.sway.x * 1.5 * k + st * 0.45, -g.lean * 0.1 + st * 0.2);
     // clips: fire on each shot, reload when a reload starts
     if (g.muzzle && g.muzzle.t !== this.lastRigShot) { this.lastRigShot = g.muzzle.t; r.fire.reset().setEffectiveWeight(1).play(); }
     if (p.reloadT > 0 && this.lastReload <= 0) { const d = r.reload.getClip().duration; r.reload.reset(); r.reload.timeScale = d / Math.max(0.5, WEAPONS[p.weapon as WeaponId].reload); r.reload.play(); }

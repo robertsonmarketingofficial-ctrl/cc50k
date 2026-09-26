@@ -93,7 +93,7 @@ function GameViewInner(props: GameViewProps) {
       audio.setListener(game.player.x, game.player.y);
       r.draw(pausedRef.current ? 0 : dt);
       hudT -= dt;
-      if (hudT <= 0) { hudT = 0.05; setHud(snapshot(game, look.current.yaw, gadgets)); }
+      if (hudT <= 0) { hudT = 0.1; setHud(snapshot(game, look.current.yaw, gadgets)); }
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
