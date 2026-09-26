@@ -27,3 +27,10 @@ for (const f of readdirSync(pub)) if (/\.(glb|hdr)$/.test(f) && f !== "eotech.gl
 mkdirSync("dist-single/assets", { recursive: true });
 writeFileSync("dist-single/assets/models.json", JSON.stringify(packed));
 console.log("dist-single/assets/models.json", (JSON.stringify(packed).length / 1048576).toFixed(1) + " MB");
+
+// offline build for the zip: everything (models, HDRI, textures) inlined so it runs from file:// with no server
+const all = { ...packed };
+for (const f of readdirSync(join(pub, "tex"))) all["tex/" + f] = readFileSync(join(pub, "tex", f)).toString("base64");
+mkdirSync("dist-offline", { recursive: true });
+writeFileSync("dist-offline/BLACKSITE.html", page.replace('<script type="module">', "<script>window.__PACKED=" + JSON.stringify(all) + ";</script>\n<script type=\"module\">"));
+console.log("dist-offline/BLACKSITE.html", (readFileSync("dist-offline/BLACKSITE.html").length / 1048576).toFixed(1) + " MB");

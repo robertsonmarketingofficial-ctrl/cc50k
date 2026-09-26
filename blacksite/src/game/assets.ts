@@ -37,7 +37,7 @@ export function loadAssets(onProgress?: (f: number) => void): Promise<Assets> {
   const blobUrl = (key: string) => { const b64 = packed![key]; const bin = atob(b64); const u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i); return URL.createObjectURL(new Blob([u8])); };
   const src = (file: string) => (packed && packed[file] ? blobUrl(file) : assetBase() + file);
   const glb = (f: string) => tick(gl.loadAsync(src(f + ".glb")));
-  const tex = (f: string, srgb: boolean) => tick(tl.loadAsync(assetBase() + "tex/" + f + ".jpg").then(t => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; if (srgb) t.colorSpace = THREE.SRGBColorSpace; return t; }));
+  const tex = (f: string, srgb: boolean) => tick(tl.loadAsync(src("tex/" + f + ".jpg")).then(t => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; if (srgb) t.colorSpace = THREE.SRGBColorSpace; return t; }));
   const set = async (id: TexId): Promise<PBRSet> => ({ map: await tex(id + "_color", true), normalMap: await tex(id + "_normal", false), roughnessMap: await tex(id + "_rough", false) });
   cache = (async () => {
     // packed builds publish models as one JSON file (static hosts may refuse .glb, and CSP blocks extra scripts)

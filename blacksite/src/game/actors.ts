@@ -163,7 +163,7 @@ export class EnemyActor {
       if ((o as THREE.Bone).isBone) this.bones[o.name] = o as THREE.Bone;
       if (m.isSkinnedMesh) {
         m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false;
-        for (const mt of (Array.isArray(m.material) ? m.material : [m.material]) as THREE.MeshStandardMaterial[]) { if (mt.isMeshStandardMaterial && !mt.userData.tuned) { mt.userData.tuned = true; mt.envMapIntensity = 2.0; if (mt.map) { mt.emissiveMap = mt.map; mt.emissive = new THREE.Color(0x2a2622); } addRim(mt); } }
+        for (const mt of (Array.isArray(m.material) ? m.material : [m.material]) as THREE.MeshStandardMaterial[]) { if (mt.isMeshStandardMaterial && !mt.userData.tuned) { mt.userData.tuned = true; mt.envMapIntensity = 2.0; if (mt.map) { mt.emissiveMap = mt.map; mt.emissive = new THREE.Color(0x3b3530); } addRim(mt); } }
         const sil = new THREE.SkinnedMesh(m.geometry, silMat); sil.bind(m.skeleton, m.bindMatrix); sil.renderOrder = 10; sil.frustumCulled = false; sil.visible = false;
         m.parent!.add(sil); this.silhouettes.push(sil);
       }
