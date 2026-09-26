@@ -9,7 +9,7 @@ export type RoomType =
   | "executive" | "maintenance" | "dock" | "holding" | "vault";
 
 export type EntranceId = "main" | "dock" | "maint";
-export type WeaponId = "pistol" | "smg" | "shotgun";
+export type WeaponId = "p226" | "g17" | "mp5" | "m4a1" | "ak12" | "m870" | "mk14";
 export type GadgetId = "noisemaker" | "emp" | "thermal" | "breach";
 export type MissionType = "steal" | "data" | "sabotage" | "rescue" | "investigate";
 export type AlertLevel = 0 | 1 | 2 | 3; // CALM, CAUTION, ALERT, LOCKDOWN
@@ -177,6 +177,7 @@ export interface Settings {
 
 export interface Loadout {
   primary: WeaponId | null;
+  secondary: WeaponId;
   gadgets: GadgetId[]; // max 2
   armor: boolean;
   pack: boolean;

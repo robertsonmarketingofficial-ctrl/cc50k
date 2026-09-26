@@ -27,7 +27,9 @@ export interface Guard {
   markedUntil: number; droneSus: number;
 }
 
-export const PREP_TIME = 30;
+/** Siege-style prep phase removed: operators start in the action phase and carry drones as gadgets. */
+export const PREP_TIME = 0;
+export const DRONE_SPEED = 1.8;
 export const EYE = 1.62, EYE_CROUCH = 1.05;
 
 interface Projectile { x: number; y: number; tx: number; ty: number; t: number; dur: number; kind: GadgetId; landed: boolean; life: number; pingT: number }
@@ -49,6 +51,8 @@ export class Game {
   lightmap: Float32Array;
   lightDirty = true;
   lightVersion = 0;
+  lightBaseExt = 0.2; lightBaseInt = 0.08;
+  stamina = 1; winded = false; sprinting = false;
   spectator = false;
   explored: Uint8Array;
   known: Uint8Array; // explored at mission start (memory)
@@ -134,7 +138,8 @@ export class Game {
     this.chiefSpared = memory.chief.status === "spared";
     const lo: Loadout = save.loadout;
     const ent = L.entrances.find(e => e.id === entry)!;
-    const weapons: WeaponId[] = ["pistol"]; if (lo.primary && save.owned.includes(lo.primary)) weapons.unshift(lo.primary);
+    const sec: WeaponId = lo.secondary && save.owned.includes(lo.secondary) ? lo.secondary : "p226";
+    const weapons: WeaponId[] = [sec]; if (lo.primary && save.owned.includes(lo.primary)) weapons.unshift(lo.primary);
     const ammo: Record<string, { mag: number; res: number }> = {};
     for (const w of weapons) ammo[w] = { mag: WEAPONS[w].mag, res: WEAPONS[w].reserve };
     const gadgets: Partial<Record<GadgetId, number>> = {};
@@ -152,11 +157,10 @@ export class Game {
     if (memory.terminalHardened) for (const i of L.interactables) if (i.kind === "secTerminal") i.time = 10;
     if (memory.panelsReinforced) for (const i of L.interactables) if (i.kind === "alarmPanel") i.time = 6;
     L.guards.forEach(g => this.spawnGuard(g));
-    // prep phase: the operator waits outside while a drone scouts
-    this.drones.push({ x: this.player.x, y: this.player.y, angle: this.player.angle, alive: true });
-    this.dronesLeft = 1; this.droneIdx = 0;
+    // no prep phase: straight into the action, with two throwable drones in the pack
+    this.dronesLeft = 2; this.droneIdx = -1;
     this.log(`Perimeter breach: ${ent.name.toLowerCase()} (reconstructed)`, "dim");
-    this.handler("start", `Prep phase. Drone's out: find the target and mark guards with a click. When you're ready, breach through the ${ent.name.toLowerCase()}. Zero hour is midnight. Don't be here for it.`);
+    this.handler("start", `You're at the ${ent.name.toLowerCase()}. Press 5 to throw a drone and scout ahead. Zero hour is midnight. Don't be here for it.`);
     this.recomputeLight();
   }
 
@@ -215,7 +219,7 @@ export class Game {
 
   recomputeLight() {
     const L = this.level, lm = this.lightmap;
-    for (let i = 0; i < lm.length; i++) lm[i] = L.tiles[i] === T.EXT ? 0.2 : 0.08;
+    for (let i = 0; i < lm.length; i++) lm[i] = L.tiles[i] === T.EXT ? this.lightBaseExt : this.lightBaseInt;
     const lockdown = this.alert === 3;
     for (const l of L.lights) {
       if (!l.on || l.offUntil > this.t) continue;
@@ -294,8 +298,14 @@ export class Game {
     this.lean += (leanWant - this.lean) * Math.min(1, dt * 12);
     const load = p.inv.reduce((a, id) => a + (LOOT[id]?.size ?? 0), 0);
     const burden = 1 - 0.18 * clamp(load / p.cap, 0, 1) * (load > p.cap / 2 ? 1 : 0.4);
-    const sprinting = p.sprint && !p.crouch && len > 0;
-    const speed = (p.crouch ? 1.9 : sprinting ? 5.1 : 3.3) * burden * (inp.ads ? 0.6 : 1) * (Math.abs(this.lean) > 0.3 ? 0.7 : 1);
+    // sprint (Shift): fast, loud, can't aim or fire; stamina runs out after ~6 s and recovers when walking
+    const wantSprint = p.sprint && !p.crouch && len > 0 && !inp.ads && !inp.fire && p.reloadT <= 0;
+    if (wantSprint && this.stamina > 0 && !this.winded) this.stamina = Math.max(0, this.stamina - dt / 6);
+    else this.stamina = Math.min(1, this.stamina + dt / (this.winded ? 5 : 3.5));
+    if (this.stamina <= 0) this.winded = true; else if (this.stamina > 0.35) this.winded = false;
+    const sprinting = wantSprint && !this.winded;
+    this.sprinting = sprinting;
+    const speed = (p.crouch ? 1.9 : sprinting ? 5.6 : 3.3) * burden * WEAPONS[p.weapon].mobility * (inp.ads ? 0.6 : 1) * (Math.abs(this.lean) > 0.3 ? 0.7 : 1);
     p.moving = len > 0;
     if (len) {
       this.moveCircle(p, mx * speed * dt, my * speed * dt, 0.3, true);
@@ -310,7 +320,7 @@ export class Game {
     p.light = this.playerLight();
     // weapons
     const w = WEAPONS[p.weapon];
-    const auto = p.weapon === "smg";
+    const auto = WEAPONS[p.weapon].auto;
     if (this.equipped !== "weapon") {
       if (inp.firePressed) {
         const kind = this.equipped;
@@ -397,17 +407,17 @@ export class Game {
     const moveSpread = (p.moving ? (p.crouch ? 1.1 : 1.6) : 1) * (this.input.ads ? 0.4 : 1) * (1 + this.recoil * 0.6);
     const ep = this.eyePos();
     const mx = ep.x + Math.cos(p.angle) * 0.3, my = ep.y + Math.sin(p.angle) * 0.3;
-    this.recoil = Math.min(1.5, this.recoil + (id === "smg" ? 0.18 : id === "shotgun" ? 0.9 : 0.45));
+    this.recoil = Math.min(1.5, this.recoil + w.recoil);
     for (let k = 0; k < w.pellets; k++) {
       const ang = p.angle + (this.rng.next() - 0.5) * 2 * w.spread * moveSpread;
       this.hitscan(mx, my, ang, w.range, w.damage, true, id);
     }
-    this.sfx.play(id === "pistol" ? "shotSuppressed" : id === "smg" ? "shotSmg" : "shotShotgun");
-    this.noise(p.x, p.y, w.noise, id === "pistol" ? "suppressed" : "shot");
-    this.shake = Math.max(this.shake, id === "shotgun" ? 0.5 : id === "smg" ? 0.18 : 0.1);
+    this.sfx.play(w.suppressed ? "shotSuppressed" : w.breach ? "shotShotgun" : w.class === "Pistol" ? "shotEnemy" : w.class === "SMG" ? "shotSmg" : "shotRifle");
+    this.noise(p.x, p.y, w.noise, w.suppressed ? "suppressed" : "shot");
+    this.shake = Math.max(this.shake, w.breach ? 0.5 : w.recoil * 0.5);
     this.particles.push({ x: mx, y: my, vx: Math.cos(p.angle + 1.6) * 2, vy: Math.sin(p.angle + 1.6) * 2, life: 0.8, max: 0.8, kind: "casing", size: 0.06 });
     this.muzzle = { x: mx, y: my, t: this.t };
-    if (id === "shotgun") {
+    if (w.breach) {
       // breaching: a shotgun blast opens a locked door you're aiming at point-blank
       const fx = Math.floor(p.x + Math.cos(p.angle) * 1.2), fy = Math.floor(p.y + Math.sin(p.angle) * 1.2);
       const di = this.level.doorAt[fy * this.level.w + fx];
@@ -451,7 +461,7 @@ export class Game {
       this.noise(hitCam.x, hitCam.y, 3, "glass");
     } else if (hitPlayer) this.damagePlayer(dmg * (this.player.crouch ? 0.9 : 1), { x, y });
     else if (best < range - 0.01) {
-      if (byPlayer && weapon === "shotgun" && best < 3.5) this.damageWall(ex + dx * 0.2, ey + dy * 0.2, dmg * 1.2);
+      if (byPlayer && weapon && (WEAPONS[weapon].breach || weapon === "ak12") && best < 3.5) this.damageWall(ex + dx * 0.2, ey + dy * 0.2, dmg * 1.2);
       this.impacts.push({ x: ex, y: ey, h: byPlayer ? aimH(best) : 1.3, t: this.t, nx: -dx, ny: -dy });
       for (let k = 0; k < 4; k++) this.particles.push({ x: ex - dx * 0.1, y: ey - dy * 0.1, vx: -dx * 2 + (this.rng.next() - 0.5) * 3, vy: -dy * 2 + (this.rng.next() - 0.5) * 3, life: 0.3, max: 0.3, kind: "spark", size: 0.04 });
       this.particles.push({ x: ex, y: ey, vx: 0, vy: 0, life: 1.2, max: 1.2, kind: "dust", size: 0.2 });
@@ -544,7 +554,7 @@ export class Game {
       let mx = inp.mvx, my = inp.mvy;
       if (!mx && !my) { mx = (inp.right ? 1 : 0) - (inp.left ? 1 : 0); my = (inp.down ? 1 : 0) - (inp.up ? 1 : 0); }
       const len = Math.hypot(mx, my);
-      if (len) { this.moveCircle(d, (mx / len) * 4.2 * dt, (my / len) * 4.2 * dt, 0.16, false); if (Math.random() < dt * 8) this.sfx.play("droneWhir", { vol: 0.25 }); }
+      if (len) { this.moveCircle(d, (mx / len) * DRONE_SPEED * dt, (my / len) * DRONE_SPEED * dt, 0.16, false); if (Math.random() < dt * 8) this.sfx.play("droneWhir", { vol: 0.25 }); }
       if (inp.firePressed) this.markAlong(d.x, d.y, d.angle, 14);
     } else if (this.camView >= 0) {
       const c = this.level.cameras[this.camView];
@@ -603,7 +613,7 @@ export class Game {
       this.shake = Math.max(this.shake, dist(this.player.x, this.player.y, tx, ty) < 6 ? 0.8 : 0.3);
       for (let k = 0; k < 30; k++) this.particles.push({ x: tx + 0.5, y: ty + 0.5, vx: (this.rng.next() - 0.5) * 9, vy: (this.rng.next() - 0.5) * 9, life: 1.4, max: 1.4, kind: k % 3 ? "dust" : "spark", size: 0.25 });
       this.noise(tx + 0.5, ty + 0.5, 18, "explosion");
-      for (const g of this.guards) if (!g.down && dist(g.x, g.y, tx + 0.5, ty + 0.5) < 2.3) this.damageGuard(g, 90, "shotgun");
+      for (const g of this.guards) if (!g.down && dist(g.x, g.y, tx + 0.5, ty + 0.5) < 2.3) this.damageGuard(g, 90, "m870");
       if (dist(this.player.x, this.player.y, tx + 0.5, ty + 0.5) < 1.6) this.damagePlayer(35, { x: tx + 0.5, y: ty + 0.5 });
       this.breaches.push({ x: tx, y: ty });
       this.log(`Wall breached with explosives (${this.roomName(tx + (vertical ? 1 : 0.5), ty + (vertical ? 0.5 : 1))})`, "red");

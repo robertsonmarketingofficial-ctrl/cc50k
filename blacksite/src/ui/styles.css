@@ -327,3 +327,7 @@ button { font: inherit; color: inherit; }
 .phase-banner span { font: 500 16px var(--sans); color: var(--ink); text-shadow: 0 1px 6px #000; }
 .click-to-play { position: absolute; left: 50%; top: 60%; transform: translateX(-50%); font: 600 14px var(--cond); letter-spacing: 0.2em; text-transform: uppercase; background: rgba(0,0,0,0.6); padding: 8px 16px; border: 1px solid rgba(255,255,255,0.15); animation: blink 1.6s steps(1) infinite; }
 .game.fp .controls-hint { bottom: auto; top: 118px; }
+
+.loading-assets{max-width:520px;margin:30vh auto 0;text-align:center}
+.load-bar{height:6px;background:rgba(255,255,255,.1);border-radius:3px;overflow:hidden}
+.load-bar i{display:block;height:100%;background:var(--amber,#f0b43c);transition:width .2s}

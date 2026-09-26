@@ -65,7 +65,7 @@ export default function Briefing({ save, contract, persist, onBack, onDeploy }: 
             <div className="dim2" style={{ fontSize: 13, marginTop: 6 }}>Anything else you carry out is yours to fence. If you don't make it, you lose what you're carrying.</div>
             <div className="label" style={{ margin: "20px 0 6px" }}>Loadout</div>
             <div className="dim" style={{ fontSize: 14 }}>
-              {[lo.primary ? WEAPONS[lo.primary].name : null, WEAPONS.pistol.name, ...lo.gadgets.filter(g => save.owned.includes(g)).map(g => GADGETS[g].name), lo.armor && save.owned.includes("armor") ? "Armour" : null, save.owned.includes("bypass") ? "Bypass kit" : null].filter(Boolean).join(" · ")}
+              {[lo.primary ? WEAPONS[lo.primary].name : null, WEAPONS[lo.secondary ?? "p226"].name, ...lo.gadgets.filter(g => save.owned.includes(g)).map(g => GADGETS[g].name), lo.armor && save.owned.includes("armor") ? "Armour" : null, save.owned.includes("bypass") ? "Bypass kit" : null].filter(Boolean).join(" · ")}
             </div>
             <div className="row" style={{ marginTop: 26, gap: 12 }}>
               <button className="btn primary" style={{ padding: "14px 30px", fontSize: 18 }} onClick={() => { audio.play("uiConfirm"); onDeploy(contract, entry); }} autoFocus>Deploy</button>
@@ -74,7 +74,7 @@ export default function Briefing({ save, contract, persist, onBack, onDeploy }: 
             {!save.seenTutorial && (
               <div className="card" style={{ marginTop: 22 }}>
                 <div className="label">Field notes</div>
-                <p>You start in the prep phase with a drone: drive it in, find the objective, click guards to mark them. Press <span className="kbd">Space</span> to breach. Inside, stay in the dark, lean with <span className="kbd">Q</span>/<span className="kbd">E</span>, sneak behind guards and press <span className="kbd">F</span> to take them down. Aim at heads. Everything you do tonight will be remembered.</p>
+                <p>No prep phase: you go straight in. Press <span className="kbd">5</span> to throw a drone and scout, and click guards to mark them. Pick your gun in the Loadout tab. Stay out of sightlines, lean with <span className="kbd">Q</span>/<span className="kbd">E</span>, sneak behind guards and press <span className="kbd">F</span> to take them down. Aim at heads. Everything you do today will be remembered.</p>
               </div>
             )}
           </div>

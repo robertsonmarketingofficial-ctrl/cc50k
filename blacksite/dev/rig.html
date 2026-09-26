@@ -1,0 +1,49 @@
+<!doctype html><html><body style="margin:0;background:#9ab"><canvas id="c" style="width:100vw;height:100vh;display:block"></canvas>
+<script type="module">
+import * as THREE from "three";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
+import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
+const q = new URLSearchParams(location.search);
+const r = new THREE.WebGLRenderer({ canvas: document.getElementById("c"), antialias: true }); r.setSize(innerWidth, innerHeight, false);
+r.toneMapping = THREE.ACESFilmicToneMapping; r.outputColorSpace = THREE.SRGBColorSpace;
+const s = new THREE.Scene(); s.background = new THREE.Color(0xb9c8d6);
+s.environment = new THREE.PMREMGenerator(r).fromScene(new RoomEnvironment(), 0.04).texture;
+s.add(new THREE.HemisphereLight(0xdfe8f5, 0x8a6a4a, 1)); const sun = new THREE.DirectionalLight(0xfff0d8, 2.5); sun.position.set(-2, 3, 1); s.add(sun);
+const cam = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.01, 100); s.add(cam);
+const L = new GLTFLoader(); L.setMeshoptDecoder(MeshoptDecoder);
+const [rig, m4] = await Promise.all([L.loadAsync("/assets/ak47.glb"), L.loadAsync("/assets/m4a1.glb")]);
+const root = rig.scene; cam.add(root);
+root.scale.setScalar(0.05); root.position.set(Number(q.get("px") ?? 0.04), Number(q.get("py") ?? -0.02), Number(q.get("pz") ?? 0)); root.rotation.set(THREE.MathUtils.degToRad(5) + Number(q.get("rx") ?? 0), THREE.MathUtils.degToRad(185) + Number(q.get("ry") ?? 0), Number(q.get("rz") ?? 0));
+const mx = new THREE.AnimationMixer(root); mx.clipAction(rig.animations.find(a => a.name === "idle")).play(); mx.update(0.3);
+s.updateMatrixWorld(true);
+const gun = root.getObjectByName("gun"); const handR = root.getObjectByName("handR") || root.getObjectByName("hand.R") || root.getObjectByName("handR");
+let ak = null; root.traverse(o => { if (o.isSkinnedMesh && /SMDImport/.test(o.name)) ak = o; });
+const out = {};
+if (ak) { ak.computeBoundingBox(); const bb = ak.boundingBox.clone().applyMatrix4(ak.matrixWorld); out.akWorld = [bb.min.toArray(), bb.max.toArray()].map(a => a.map(v => +v.toFixed(3))); }
+const gp = gun.getWorldPosition(new THREE.Vector3()), gq = gun.getWorldQuaternion(new THREE.Quaternion());
+out.gunPos = gp.toArray().map(v => +v.toFixed(3));
+out.gunAxes = ["x", "y", "z"].map(a => new THREE.Vector3(a === "x" ? 1 : 0, a === "y" ? 1 : 0, a === "z" ? 1 : 0).applyQuaternion(gq).toArray().map(v => +v.toFixed(2)));
+out.gunScale = gun.getWorldScale(new THREE.Vector3()).toArray().map(v => +v.toFixed(4));
+console.log("INFO " + JSON.stringify(out));
+if (q.get("m4") === "bone") {
+  ak.visible = false;
+  const g = m4.scene; const holder = new THREE.Group(); holder.add(g);
+  holder.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(-1, 0, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 1, 0)));
+  holder.scale.setScalar(Number(q.get("s") || 0.84));
+  holder.position.set(Number(q.get("x") || 0), Number(q.get("y") || -0.125), Number(q.get("z") || 0));
+  gun.add(holder);
+  if (q.get("both")) ak.visible = true;
+} else if (q.get("m4")) {
+  ak.visible = false;
+  const g = m4.scene; const holder = new THREE.Group(); holder.add(g);
+  // M4 native: length along z (-0.5..0.5), y up; place in camera space directly with query offsets
+  cam.add(holder);
+  g.scale.setScalar(Number(q.get("s") || 0.84));
+  holder.position.set(Number(q.get("x") || 0.1), Number(q.get("y") || -0.12), Number(q.get("z") || -0.3));
+  holder.rotation.set(Number(q.get("rx") || 0), Number(q.get("ry") || 0), Number(q.get("rz") || 0));
+  window.__holder = holder;
+}
+const ch = new THREE.Mesh(new THREE.RingGeometry(0.0008, 0.0012, 16), new THREE.MeshBasicMaterial({ color: 0xff0000, depthTest: false })); ch.position.z = -0.2; ch.renderOrder = 99; cam.add(ch);
+r.render(s, cam); window.__done = true;
+</script></body></html>

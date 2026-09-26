@@ -49,22 +49,29 @@ describe("headless playthroughs", () => {
     expect(r!.objectiveDone).toBe(true);
   });
 
-  it("prep phase: drone first, operator frozen, then action", () => {
+  it("no prep phase: straight into action; drones are an optional, slow gadget", () => {
     const g = new Game(contract("halvorsen", "steal"), newSave(), "dock", silent);
-    expect(g.inPrep()).toBe(true);
-    expect(g.viewpoint().kind).toBe("drone");
-    const start = { x: g.player.x, y: g.player.y };
-    g.input.right = true;
-    for (let i = 0; i < 40; i++) g.update(0.05);
-    expect(g.player.x).toBe(start.x);           // operator waits outside
-    expect(g.drones[0].x).not.toBe(start.x);    // the drone drove
-    g.startAction();
+    expect(g.inPrep()).toBe(false);
     expect(g.viewpoint().kind).toBe("operator");
     expect(g.clock()).toBe("23:47:00");
+    expect(g.drones.length).toBe(0);
+    g.toggleDrone();
+    expect(g.viewpoint().kind).toBe("drone");
+    const d = g.drones[0], start = { x: d.x, y: d.y }, op = { x: g.player.x, y: g.player.y };
+    g.input.mvx = 1; g.input.mvy = 0;
+    for (let i = 0; i < 20; i++) g.update(0.05); // one second of driving
+    const moved = Math.hypot(d.x - start.x, d.y - start.y);
+    expect(moved).toBeGreaterThan(0.5);
+    expect(moved).toBeLessThan(2.1);              // slow: about walking pace, not a race car
+    expect(g.player.x).toBe(op.x);                // the operator stays put while droning
+    g.toggleDrone();
+    expect(g.viewpoint().kind).toBe("operator");
+    expect(g.dronesLeft).toBe(1);
   });
 
   it("drone marks a guard it's looking at", () => {
     const g = new Game(contract("meridian", "data"), newSave(), "main", silent);
+    g.toggleDrone();
     const d = g.drones[0]; const guard = g.guards.find(x => !x.post)!;
     d.x = guard.x - 3; d.y = guard.y; // put the drone in the same room, looking at the guard
     g.input.mouseX = guard.x; g.input.mouseY = guard.y; g.input.firePressed = true;
@@ -106,10 +113,10 @@ describe("headless playthroughs", () => {
     g.player.x = guard.x - 1.2; g.player.y = guard.y; g.input.mouseX = guard.x; g.input.mouseY = guard.y;
     guard.state = "COMBAT"; guard.seesPlayer = true; // aware: no sneak-attack bonus
     g.input.pitch = -0.6; // aim low: body
-    (g as any).hitscan(g.player.x, g.player.y, 0, 10, 55, true, "pistol");
+    (g as any).hitscan(g.player.x, g.player.y, 0, 10, 55, true, "p226");
     expect(guard.down).toBeNull();
     g.input.pitch = 0; // eye level: head
-    (g as any).hitscan(g.player.x, g.player.y, 0, 10, 55, true, "pistol");
+    (g as any).hitscan(g.player.x, g.player.y, 0, 10, 55, true, "p226");
     expect(guard.down).toBe("dead");
     expect(g.headshots).toBe(1);
   });

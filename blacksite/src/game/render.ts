@@ -275,7 +275,7 @@ export class Renderer {
       const gr = d.createRadialGradient(m.x, m.y, 0, m.x, m.y, r); gr.addColorStop(0, `rgba(0,0,0,${a})`); gr.addColorStop(1, "rgba(0,0,0,0)");
       d.fillStyle = gr; d.beginPath(); d.arc(m.x, m.y, r, 0, 7); d.fill();
     };
-    flash(g.muzzle, p.weapon === "pistol" ? 2.2 : 5, 0.07); flash(g.muzzleEnemy, 4.5, 0.07);
+    flash(g.muzzle, p.weapon === "p226" ? 2.2 : 5, 0.07); flash(g.muzzleEnemy, 4.5, 0.07);
     d.restore();
     ctx.globalCompositeOperation = "source-over";
     ctx.drawImage(this.dark, 0, 0, W, H);
@@ -584,7 +584,7 @@ export class Renderer {
     ctx.strokeStyle = "#cfc8b6"; ctx.lineWidth = 0.035; ctx.stroke();
     ctx.fillStyle = "#2c3034"; ctx.beginPath(); ctx.arc(0.02, 0, 0.16, 0, 7); ctx.fill();
     ctx.fillStyle = "#9fa7a0"; ctx.fillRect(0.1, -0.02, 0.04, 0.04);
-    const len = p.weapon === "shotgun" ? 0.55 : p.weapon === "smg" ? 0.48 : 0.5;
+    const len = p.weapon === "p226" || p.weapon === "g17" ? 0.4 : 0.55;
     ctx.fillStyle = "#0d0e10"; ctx.fillRect(0.14, 0.07, len, 0.08);
     ctx.restore();
     // aim line (subtle)

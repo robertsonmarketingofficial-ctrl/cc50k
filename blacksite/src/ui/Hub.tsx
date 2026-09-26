@@ -112,22 +112,22 @@ function LoadoutTab({ save, persist }: { save: SaveGame; persist: (s: SaveGame) 
     if (next.length > 2) next = next.slice(-2);
     set({ gadgets: next });
   };
-  const primaries: (WeaponId | null)[] = [null, "smg", "shotgun"];
+  const primaries = (Object.values(WEAPONS)).filter(w => w.slot === "primary");
+  const secondaries = (Object.values(WEAPONS)).filter(w => w.slot === "secondary");
   return (
     <>
       <h2 className="h1">Operator · Wraith</h2>
-      <p className="sub">The suppressed P9 always comes with you, plus two drones for recon. Pick one primary and two gadgets for slots 3 and 4. Consumables are restocked for free before every job.</p>
-      <div className="label" style={{ margin: "8px 0" }}>Sidearm</div>
-      <WeaponCard id="pistol" on disabled={false} onClick={() => {}} />
-      <div className="label" style={{ margin: "22px 0 8px" }}>Primary</div>
+      <p className="sub">Pick a primary and a sidearm, then two gadgets for slots 3 and 4. You always carry two drones. Consumables are restocked for free before every job.</p>
+      <div className="label" style={{ margin: "8px 0" }}>Primary</div>
       <div className="slots">
-        {primaries.map(p => p === null ? (
-          <button key="none" className={"slot" + (lo.primary === null ? " on" : "")} onClick={() => set({ primary: null })}>
-            <h4>No primary</h4><p>Travel light. Nothing loud to reach for, so you won't.</p>
-          </button>
-        ) : (
-          <WeaponCard key={p} id={p} on={lo.primary === p} disabled={!save.owned.includes(p)} onClick={() => set({ primary: p })} />
-        ))}
+        <button className={"slot" + (lo.primary === null ? " on" : "")} onClick={() => set({ primary: null })}>
+          <h4>No primary</h4><p>Travel light. Faster on your feet, nothing loud to reach for.</p>
+        </button>
+        {primaries.map(w => <WeaponCard key={w.id} id={w.id} on={lo.primary === w.id} disabled={!save.owned.includes(w.id)} onClick={() => set({ primary: w.id })} />)}
+      </div>
+      <div className="label" style={{ margin: "22px 0 8px" }}>Secondary</div>
+      <div className="slots">
+        {secondaries.map(w => <WeaponCard key={w.id} id={w.id} on={(lo.secondary ?? "p226") === w.id} disabled={!save.owned.includes(w.id)} onClick={() => set({ secondary: w.id })} />)}
       </div>
       <div className="label" style={{ margin: "22px 0 8px" }}>Gadgets, slots 3 and 4 <span className="dim2">({lo.gadgets.length}/2)</span></div>
       <div className="slots">
@@ -166,14 +166,15 @@ function WeaponCard({ id, on, disabled, onClick }: { id: WeaponId; on: boolean; 
   const w = WEAPONS[id];
   const bar = (v: number) => <div className="meter"><i style={{ width: `${Math.min(100, v * 100)}%` }} /></div>;
   return (
-    <button className={"slot" + (on ? " on" : "")} disabled={disabled} onClick={onClick} style={{ maxWidth: id === "pistol" ? 460 : undefined }}>
-      <h4>{w.name}</h4>
+    <button className={"slot" + (on ? " on" : "")} disabled={disabled} onClick={onClick}>
+      <div className="between"><h4>{w.name}</h4><span className="label">{w.class}</span></div>
       <p>{disabled ? "Locked: available from the supplier." : w.desc}</p>
       <div className="stats-mini">
-        <span>DAMAGE</span>{bar((w.damage * w.pellets) / 150)}
-        <span>RATE</span>{bar(w.rate / 11)}
-        <span>RANGE</span>{bar(w.range / 14)}
-        <span>NOISE</span>{bar(w.noise / 18)}
+        <span>DAMAGE</span>{bar((w.damage * w.pellets) / 152)}
+        <span>RATE</span>{bar(w.rate / 13)}
+        <span>RANGE</span>{bar(w.range / 30)}
+        <span>MOBILITY</span>{bar((w.mobility - 0.8) / 0.2)}
+        <span>NOISE</span>{bar(w.noise / 20)}
       </div>
       {!disabled && <p className="amber" style={{ marginTop: 8, fontSize: 12.5 }}>{w.tradeoff}</p>}
     </button>
@@ -186,7 +187,8 @@ function Supplier({ save, persist }: { save: SaveGame; persist: (s: SaveGame) =>
     if (save.credits < cost) return;
     audio.play("uiConfirm");
     const s = { ...save, credits: save.credits - cost, owned: [...save.owned, id] };
-    if (id === "smg" && !s.loadout.primary) s.loadout = { ...s.loadout, primary: "smg" };
+    const wd = (WEAPONS as Record<string, typeof WEAPONS["mp5"]>)[id];
+    if (wd && wd.slot === "primary") s.loadout = { ...s.loadout, primary: id as WeaponId };
     if ((id === "emp" || id === "thermal") && s.loadout.gadgets.length < 2) s.loadout = { ...s.loadout, gadgets: [...s.loadout.gadgets, id as GadgetId] };
     persist(s);
   };

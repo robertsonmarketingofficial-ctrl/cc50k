@@ -1,31 +1,65 @@
 import type { FacilityId, GadgetId, LootDef, MissionType, RoomType, WeaponId } from "./types";
 
 export interface WeaponDef {
-  id: WeaponId; name: string; short: string;
+  id: WeaponId; name: string; short: string; slot: "primary" | "secondary"; class: string;
   damage: number; pellets: number; spread: number; rate: number; // shots/sec
   mag: number; reserve: number; reload: number; range: number;
   noise: number; // radius in tiles that guards hear
+  auto: boolean; suppressed: boolean; breach: boolean; recoil: number; ads: number; // fov zoom on ADS
+  mobility: number; // movement multiplier
+  cost: number; rep: number;
   desc: string; tradeoff: string;
 }
 
 export const WEAPONS: Record<WeaponId, WeaponDef> = {
-  pistol: {
-    id: "pistol", name: "Sable P9 (suppressed)", short: "P9-S",
-    damage: 55, pellets: 1, spread: 0.025, rate: 2.6, mag: 10, reserve: 30, reload: 1.3, range: 14, noise: 4.5,
-    desc: "Integral suppressor. Drops an unaware target in one shot, an alert one in two.",
+  p226: {
+    id: "p226", name: "SIG P226 (suppressed)", short: "P226", slot: "secondary", class: "Pistol",
+    damage: 55, pellets: 1, spread: 0.022, rate: 3, mag: 15, reserve: 45, reload: 1.4, range: 16, noise: 4.5,
+    auto: false, suppressed: true, breach: false, recoil: 0.45, ads: 12, mobility: 1, cost: 0, rep: 0,
+    desc: "9mm service pistol with a can. Kills an unaware target in one shot, an alert one in two.",
     tradeoff: "Quiet, not silent: anyone within a few metres still hears it.",
   },
-  smg: {
-    id: "smg", name: "Vekta MP-9", short: "MP-9",
-    damage: 24, pellets: 1, spread: 0.09, rate: 11, mag: 30, reserve: 60, reload: 1.9, range: 11, noise: 16,
-    desc: "Fast, forgiving, loud. Wins fights you shouldn't have started.",
-    tradeoff: "Every burst is heard across half the facility.",
+  g17: {
+    id: "g17", name: "Glock 17", short: "G17", slot: "secondary", class: "Pistol",
+    damage: 48, pellets: 1, spread: 0.028, rate: 4.5, mag: 17, reserve: 51, reload: 1.2, range: 15, noise: 13,
+    auto: false, suppressed: false, breach: false, recoil: 0.38, ads: 12, mobility: 1, cost: 500, rep: 0,
+    desc: "Fast, light, big magazine. Quicker follow-up shots than the P226.",
+    tradeoff: "Unsuppressed: every shot is heard across the building.",
   },
-  shotgun: {
-    id: "shotgun", name: "Halden 12 breacher", short: "H-12",
-    damage: 19, pellets: 8, spread: 0.22, rate: 1.4, mag: 5, reserve: 15, reload: 2.6, range: 7, noise: 18,
-    desc: "Ends any close fight in one trigger pull. Blows locks off doors instantly.",
-    tradeoff: "Short range, slow reload, and the loudest thing in the building.",
+  mp5: {
+    id: "mp5", name: "HK MP5A3", short: "MP5", slot: "primary", class: "SMG",
+    damage: 26, pellets: 1, spread: 0.06, rate: 13, mag: 30, reserve: 90, reload: 2.0, range: 13, noise: 15,
+    auto: true, suppressed: false, breach: false, recoil: 0.16, ads: 20, mobility: 0.97, cost: 900, rep: 1,
+    desc: "Roller-delayed 9mm. Controllable, accurate for an SMG, easy to handle indoors.",
+    tradeoff: "Loud, and 9mm drops off past the length of a room.",
+  },
+  m4a1: {
+    id: "m4a1", name: "Colt M4A1", short: "M4A1", slot: "primary", class: "Assault rifle",
+    damage: 34, pellets: 1, spread: 0.05, rate: 11, mag: 30, reserve: 90, reload: 2.3, range: 22, noise: 18,
+    auto: true, suppressed: false, breach: false, recoil: 0.22, ads: 26, mobility: 0.93, cost: 1600, rep: 2,
+    desc: "5.56 carbine with a holographic sight. Hits hard at any range inside a building.",
+    tradeoff: "Heavier and louder than the MP5. You'll feel it when you sprint.",
+  },
+  ak12: {
+    id: "ak12", name: "Kalashnikov AK-47", short: "AK-47", slot: "primary", class: "Assault rifle",
+    damage: 41, pellets: 1, spread: 0.065, rate: 10, mag: 30, reserve: 90, reload: 2.5, range: 22, noise: 19,
+    auto: true, suppressed: false, breach: false, recoil: 0.32, ads: 24, mobility: 0.92, cost: 1700, rep: 2,
+    desc: "7.62 rifle with wood furniture. Two body shots drop almost anyone, and it punches through a plaster wall.",
+    tradeoff: "Kicks hard on full auto. Burst it or lose control.",
+  },
+  m870: {
+    id: "m870", name: "Remington 870", short: "M870", slot: "primary", class: "Shotgun",
+    damage: 19, pellets: 8, spread: 0.2, rate: 1.3, mag: 6, reserve: 18, reload: 2.8, range: 8, noise: 20,
+    auto: false, suppressed: false, breach: true, recoil: 0.9, ads: 12, mobility: 0.95, cost: 1500, rep: 2,
+    desc: "Pump-action 12 gauge. Ends any close fight and blows locked doors open.",
+    tradeoff: "Short range, slow pump, the loudest thing in the building.",
+  },
+  mk14: {
+    id: "mk14", name: "Mk 14 EBR", short: "MK14", slot: "primary", class: "Marksman rifle",
+    damage: 75, pellets: 1, spread: 0.018, rate: 3.2, mag: 20, reserve: 60, reload: 2.6, range: 30, noise: 20,
+    auto: false, suppressed: false, breach: false, recoil: 0.7, ads: 40, mobility: 0.88, cost: 2200, rep: 3,
+    desc: "7.62 battle rifle in a chassis with a 3x scope. One body shot drops a guard.",
+    tradeoff: "Heavy, slow to aim and loud. Wrong gun for a corridor fight.",
   },
 };
 
@@ -104,13 +138,12 @@ export const MISSION_TEXT: Record<MissionType, { verb: string; label: string; de
 
 export interface UnlockDef { id: string; name: string; kind: "weapon" | "gadget" | "gear" | "intel"; cost: number; rep: number; desc: string; requires?: string; hint?: string }
 export const UNLOCKS: UnlockDef[] = [
-  { id: "smg", name: "Vekta MP-9", kind: "weapon", cost: 900, rep: 1, desc: WEAPONS.smg.desc + " " + WEAPONS.smg.tradeoff },
+  ...(["g17", "mp5", "m4a1", "ak12", "m870", "mk14"] as WeaponId[]).map(id => ({ id, name: WEAPONS[id].name, kind: "weapon" as const, cost: WEAPONS[id].cost, rep: WEAPONS[id].rep, desc: WEAPONS[id].desc + " " + WEAPONS[id].tradeoff })),
   { id: "bypass", name: "Bypass kit", kind: "gear", cost: 700, rep: 0, desc: "Hacks locks and terminals 2.5× faster. Changes which routes are realistic." },
   { id: "noisemaker", name: "Noisemaker", kind: "gadget", cost: 0, rep: 0, desc: GADGETS.noisemaker.desc },
   { id: "breach", name: "Breach charges", kind: "gadget", cost: 0, rep: 0, desc: GADGETS.breach.desc },
   { id: "armor", name: "Soft armour vest", kind: "gear", cost: 1100, rep: 2, desc: "Takes about two extra hits. The plates rattle: sprinting is louder while you wear it." },
   { id: "pack", name: "Field pack", kind: "gear", cost: 800, rep: 1, desc: "Carry 10 units instead of 6. Heavier loads slow you down a little more." },
-  { id: "shotgun", name: "Halden 12 breacher", kind: "weapon", cost: 1500, rep: 2, desc: WEAPONS.shotgun.desc + " " + WEAPONS.shotgun.tradeoff },
   { id: "emp", name: "EMP charges", kind: "gadget", cost: 1800, rep: 3, desc: GADGETS.emp.desc, hint: "Or extract the EMP capacitor core from Halvorsen's labs and a fabricator will build them for you." },
   { id: "thermal", name: "Thermal optic", kind: "gadget", cost: 0, rep: 99, desc: GADGETS.thermal.desc, requires: "castell_rescued", hint: "Not for sale. Dr. Castell built it, and would give it to someone who got her out." },
 ];

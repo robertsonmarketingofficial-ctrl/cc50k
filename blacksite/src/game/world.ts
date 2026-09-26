@@ -22,8 +22,8 @@ export const DEFAULT_SETTINGS: Settings = { master: 0.8, sfx: 0.9, ambience: 0.7
 export function newSave(): SaveGame {
   const s: SaveGame = {
     version: 2, createdAt: Date.now(), credits: 400, rep: 0, incident: 487, runs: 0,
-    owned: ["pistol", "noisemaker", "breach"],
-    loadout: { primary: null, gadgets: ["breach", "noisemaker"], armor: false, pack: false },
+    owned: ["p226", "mp5", "noisemaker", "breach"],
+    loadout: { primary: "mp5", secondary: "p226", gadgets: ["breach", "noisemaker"], armor: false, pack: false },
     facilities: { halvorsen: defaultMemory("halvorsen"), meridian: defaultMemory("meridian"), kestrel: defaultMemory("kestrel"), blacksite: defaultMemory("blacksite") },
     story: [], contracts: [], reports: [], news: [], stash: [], inMission: null, settings: { ...DEFAULT_SETTINGS }, seenTutorial: false,
   };
@@ -42,6 +42,12 @@ export function loadSave(): { save: SaveGame | null; error?: string } {
     for (const f of Object.keys(FACILITIES) as FacilityId[]) s.facilities[f] = { ...defaultMemory(f), ...(s.facilities[f] ?? {}) };
     s.settings = { ...DEFAULT_SETTINGS, ...(s.settings ?? {}) };
     if (!s.owned.includes("breach")) s.owned.push("breach");
+    // weapon line-up v3: map old guns onto real ones
+    const remap: Record<string, string> = { pistol: "p226", smg: "mp5", shotgun: "m870" };
+    s.owned = [...new Set(s.owned.map(o => remap[o] ?? o).concat(["p226", "mp5"]))];
+    const lo = s.loadout as any;
+    lo.primary = lo.primary ? remap[lo.primary] ?? lo.primary : "mp5";
+    lo.secondary = lo.secondary ?? "p226";
     if (!s.contracts.length) s.contracts = generateContracts(s);
     return { save: s };
   } catch {

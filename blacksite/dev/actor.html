@@ -1,0 +1,21 @@
+<!doctype html><html><body style="margin:0;background:#9ab"><canvas id="c" style="width:100vw;height:100vh;display:block"></canvas>
+<script>window.__ASSET_BASE = "/assets/";</script>
+<script type="module">
+import * as THREE from "three";
+import { loadAssets } from "/src/game/assets.ts";
+import { EnemyActor } from "/src/game/actors.ts";
+const q = new URLSearchParams(location.search);
+const r = new THREE.WebGLRenderer({ canvas: document.getElementById("c"), antialias: true }); r.setSize(innerWidth, innerHeight, false);
+r.toneMapping = THREE.ACESFilmicToneMapping; r.outputColorSpace = THREE.SRGBColorSpace; r.shadowMap.enabled = true;
+const s = new THREE.Scene(); s.background = new THREE.Color(0xb9c8d6);
+const A = await loadAssets();
+const pm = new THREE.PMREMGenerator(r); if (A.hdr) s.environment = pm.fromEquirectangular(A.hdr).texture;
+s.add(new THREE.HemisphereLight(0xdfe8f5, 0x8a6a4a, 0.6)); const sun = new THREE.DirectionalLight(0xfff0d8, 3); sun.position.set(-3, 5, 4); sun.castShadow = true; s.add(sun);
+const fl = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), new THREE.MeshStandardMaterial({ color: 0xc8b89a })); fl.rotation.x = -Math.PI / 2; fl.receiveShadow = true; s.add(fl);
+const sil = new THREE.MeshBasicMaterial({ color: 0xff4655, transparent: true, opacity: 0.5, depthTest: false });
+const kinds = (q.get("kinds") || "guard,contractor,chief,guard").split(",");
+kinds.forEach((k, i) => { const e = new EnemyActor(A, k, i, sil); e.root.position.set((i - (kinds.length - 1) / 2) * 1.2, 0, 0); e.root.rotation.y = Number(q.get("rot") || 0.9); s.add(e.root);
+  for (let f = 0; f < 10; f++) e.update(0.05, Number(q.get("speed") || 0), q.get("aim") === "1"); });
+const cam = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.05, 100); cam.position.set(0, 1.4, 5.5); cam.lookAt(0, 1.0, 0);
+r.render(s, cam); window.__done = true;
+</script></body></html>

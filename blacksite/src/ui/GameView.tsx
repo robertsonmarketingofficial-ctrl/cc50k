@@ -5,6 +5,7 @@ import { Game, ZERO_HOUR } from "../game/engine";
 import { findPath } from "../game/geom";
 import { drawMap } from "../game/render";
 import { FPRenderer } from "../game/render3d";
+import { getAssets, loadAssets } from "../game/assets";
 import type { Contract, EntranceId, GadgetId, MissionResult, SaveGame, Settings } from "../game/types";
 
 const OPERATOR = "WRAITH";
@@ -15,12 +16,30 @@ interface Hud {
   hp: number; maxHp: number; light: number; crouch: boolean; hidden: boolean; lean: number;
   weapon: string; weaponId: string; mag: number; res: number; reloading: boolean; equipped: string;
   slots: { key: string; label: string; n?: number; on: boolean; dim: boolean }[];
-  prompt: Game["prompt"]; toast: string | null; radio: Game["radio"]; status: Game["status"]; invUsed: number; cap: number; sprint: boolean;
+  prompt: Game["prompt"]; toast: string | null; radio: Game["radio"]; status: Game["status"]; invUsed: number; cap: number; sprint: boolean; stamina: number;
   view: "operator" | "drone" | "camera"; viewLabel: string; feed: Game["feed"]; hit: Game["hitMarker"]; spread: number; ads: boolean;
   dmg: { rel: number; a: number }[]; watch: { rel: number; level: number; cam: boolean }[]; dronesLeft: number; feedsHacked: boolean; t: number;
 }
 
-export default function GameView(props: { save: SaveGame; contract: Contract; entry: EntranceId; settings: Settings; onEnd: (r: MissionResult) => void; onSettings: () => void }) {
+type GameViewProps = { save: SaveGame; contract: Contract; entry: EntranceId; settings: Settings; onEnd: (r: MissionResult) => void; onSettings: () => void };
+
+/** loads the real-world assets (models, scans, HDRI) once, then starts the mission */
+export default function GameView(props: GameViewProps) {
+  const [ready, setReady] = useState(!!getAssets());
+  const [pct, setPct] = useState(0);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => { if (ready) return; loadAssets(f => setPct(f)).then(() => setReady(true)).catch(() => setFailed(true)); }, [ready]);
+  if (ready) return <GameViewInner {...props} />;
+  return (
+    <div className="screen boot"><div className="loading-assets">
+      <div className="label">{failed ? "Couldn't load assets" : "Deploying"}</div>
+      <div className="h1" style={{ fontSize: 28, margin: "8px 0 14px" }}>{failed ? "Check your connection and try again" : "Loading field assets"}</div>
+      {!failed && <div className="load-bar"><i style={{ width: `${Math.round(pct * 100)}%` }} /></div>}
+    </div></div>
+  );
+}
+
+function GameViewInner(props: GameViewProps) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const gameRef = useRef<Game | null>(null);
   const rendRef = useRef<FPRenderer | null>(null);
@@ -57,7 +76,7 @@ export default function GameView(props: { save: SaveGame; contract: Contract; en
     const loop = (now: number) => {
       if (!alive) return;
       const dt = Math.min(0.05, (now - last) / 1000); last = now;
-      if (import.meta.env.DEV && typeof (window as any).__look === "number") { look.current.yaw = (window as any).__look; }
+      if (import.meta.env.DEV && typeof (window as any).__look === "number") { look.current.yaw = (window as any).__look; if (typeof (window as any).__pitch === "number") look.current.pitch = (window as any).__pitch; }
       const vp = game.viewpoint();
       if (vp.kind !== lastView) { look.current.yaw = vp.angle; lastView = vp.kind; }
       // WASD relative to where you're looking
@@ -135,7 +154,6 @@ export default function GameView(props: { save: SaveGame; contract: Contract; en
         case "KeyV": if (down && !e.repeat) game.toggleCams(0); break;
         case "KeyG": if (down && !e.repeat) { const q = gadgets.find(x => x !== "breach" && game.player.gadgets[x]); if (q) game.throwGadget(q); else game.sfx.play("denied"); } break;
         case "KeyT": if (down && !e.repeat) game.throwGadget("thermal"); break;
-        case "Space": if (down) { e.preventDefault(); if (game.inPrep()) game.startAction(); } break;
         case "KeyH": if (down) setShowHints(v => !v); break;
       }
     };
@@ -241,6 +259,7 @@ export default function GameView(props: { save: SaveGame; contract: Contract; en
             <div className="op-body">
               <div className="op-name">{OPERATOR}<span className="label">{h.hidden ? "IN LOCKER" : h.lean ? (h.lean < 0 ? "LEAN L" : "LEAN R") : h.crouch ? "CROUCHED" : h.sprint ? "SPRINTING" : "STANDING"}</span></div>
               <div className={"op-hp" + (h.hp / h.maxHp < 0.35 ? " low" : "")}><b>{Math.ceil(h.hp)}</b><div className="op-bar"><i style={{ width: `${(h.hp / h.maxHp) * 100}%` }} /></div></div>
+              <div className="vis stam"><span>STAMINA</span><div className="meter"><i style={{ width: `${Math.round(h.stamina * 100)}%`, background: h.stamina < 0.3 ? "#e8574a" : undefined }} /></div></div>
               <div className="vis"><span>{h.hidden ? "HIDDEN" : "LIGHT"}</span><div className="meter"><i style={{ width: `${h.hidden ? 0 : Math.round(h.light * 100)}%` }} /></div>{h.invUsed > 0 && <span className="mono">PACK {h.invUsed}/{h.cap}</span>}</div>
             </div>
           </div>
@@ -267,8 +286,6 @@ export default function GameView(props: { save: SaveGame; contract: Contract; en
             {h.toast && <div className="toast">{h.toast}</div>}
           </div>
 
-          {h.phase === "prep" && h.timer > 26 && <div className="phase-banner"><b>PREP PHASE</b><span>Drone the building. Find the objective. Mark guards.</span></div>}
-          {h.phase === "action" && game && game.t - game.prepEnd < 3 && game.t > 1 && <div className="phase-banner action"><b>ACTION PHASE</b><span>Breach.</span></div>}
 
           {showHints && h.status === "playing" && (
             <div className="controls-hint">
@@ -335,8 +352,8 @@ function snapshot(g: Game, yaw: number, gadgets: GadgetId[]): Hud {
     alert: g.alert, objective: g.objectiveText(), objDone: g.objectiveDone || g.hostageOk(),
     hp: p.hp, maxHp: p.maxHp, light: p.light, crouch: p.crouch, hidden: p.hidden >= 0, lean: Math.abs(g.lean) > 0.4 ? Math.sign(g.lean) : 0,
     weapon: w.name, weaponId: p.weapon, mag: a.mag, res: a.res, reloading: p.reloadT > 0, equipped: g.equipped, slots,
-    prompt: g.prompt ? { ...g.prompt } : null, toast: g.toast && g.t - g.toast.t < 2.5 ? g.toast.text : null, radio: [...g.radio], status: g.status,
-    invUsed: g.invUsed(), cap: p.cap, sprint: p.sprint && p.moving && !p.crouch,
+    prompt: g.prompt ? { ...g.prompt } : null, toast: g.toast && g.t - g.toast.t < 2.5 ? g.toast.text : null, radio: g.radio.filter(r => g.t - r.t < 9), status: g.status,
+    invUsed: g.invUsed(), cap: p.cap, sprint: g.sprinting, stamina: g.stamina,
     view: vp.kind, viewLabel: cam ? `CAM ${String(cam.id + 1).padStart(2, "0")} · ${g.roomName(cam.x, cam.y).toUpperCase()}` : "", feed: [...g.feed], hit: g.hitMarker,
     spread: Math.min(1.5, (p.moving ? (p.sprint ? 1 : 0.5) : 0.1) + g.recoil * 0.5) * (g.input.ads ? 0.3 : 1), ads: g.input.ads,
     dmg: g.damageDirs.map(d => ({ rel: rel(d.angle), a: 1 - (g.t - d.t) / 1.2 })),

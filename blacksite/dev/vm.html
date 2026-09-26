@@ -1,0 +1,33 @@
+<!doctype html><html><body style="margin:0;background:#9ab">
+<canvas id="c" style="width:100vw;height:100vh;display:block"></canvas>
+<script type="module">
+import * as THREE from "three";
+import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
+import { weaponVM } from "/src/game/render3d.ts";
+import { buildSoldier, poseSoldier } from "/src/game/models.ts";
+const q = new URLSearchParams(location.search);
+const c = document.getElementById("c");
+const r = new THREE.WebGLRenderer({ canvas: c, antialias: true }); r.setSize(innerWidth, innerHeight, false);
+r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 0.9; r.outputColorSpace = THREE.SRGBColorSpace; r.shadowMap.enabled = true;
+const s = new THREE.Scene(); s.background = new THREE.Color(0xb9c8d6);
+const pm = new THREE.PMREMGenerator(r); s.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture; s.environmentIntensity = 0.5;
+s.add(new THREE.HemisphereLight(0xdfe8f5, 0x8a6a4a, 1.0));
+const sun = new THREE.DirectionalLight(0xfff0d8, 2.6); sun.position.set(-2, 3, 1); s.add(sun);
+const cam = new THREE.PerspectiveCamera(Number(q.get("fov") || 56), innerWidth / innerHeight, 0.01, 50);
+const mode = q.get("mode") || "vm";
+if (mode === "vm") {
+  const vm = weaponVM(q.get("w") || "m4a1"); s.add(vm.root);
+  const ads = q.get("ads") === "1";
+  vm.root.position.copy(ads ? vm.ads : vm.hip);
+  const yaw = Number(q.get("yaw") ?? 0.1), roll = Number(q.get("roll") ?? -0.1);
+  if (!ads) vm.root.rotation.set(0.02, yaw, roll);
+  if (q.get("side")) { vm.root.position.set(0, 0, 0); vm.root.rotation.set(0, Number(q.get("side")), 0); cam.position.set(0, 0.02, 0.75); }
+} else {
+  const kinds = (q.get("kinds") || "guard,contractor,chief").split(",");
+  kinds.forEach((k, i) => { const g = buildSoldier(k); g.position.set((i - 1) * 1.1, 0, 0); g.rotation.y = -Math.PI / 2 + Number(q.get("rot") || 0.5); poseSoldier(g, Number(q.get("ph") || 0), Number(q.get("amt") || 0), q.get("aim") === "1"); s.add(g); });
+  const fl = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), new THREE.MeshStandardMaterial({ color: 0xc8b89a })); fl.rotation.x = -Math.PI / 2; fl.receiveShadow = true; s.add(fl);
+  sun.castShadow = true; s.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  cam.position.set(0, 1.5, 3.4); cam.lookAt(0, 1.0, 0); cam.fov = 45; cam.updateProjectionMatrix();
+}
+r.render(s, cam); window.__done = true;
+</script></body></html>
