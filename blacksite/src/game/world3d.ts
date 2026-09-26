@@ -110,7 +110,10 @@ export function resample(mesh: THREE.Mesh, sampler: Sampler) {
 }
 
 const box = (w: number, h: number, d: number, x: number, y: number, z: number, ry = 0) => {
-  const g = new THREE.BoxGeometry(w, h, d); if (ry) g.rotateY(ry); g.translate(x, y, z); return g;
+  // every block gets a small rounded bevel: real plaster and stone never have razor edges
+  const r = Math.min(0.045, w * 0.3, h * 0.3, d * 0.3);
+  const g = r > 0.004 ? new RoundedBoxGeometry(w, h, d, 1, r) : new THREE.BoxGeometry(w, h, d);
+  if (ry) g.rotateY(ry); g.translate(x, y, z); return g;
 };
 const rbox = (w: number, h: number, d: number, r: number, x: number, y: number, z: number) => {
   const g = new RoundedBoxGeometry(w, h, d, 2, Math.min(r, w / 2 - 1e-3, h / 2 - 1e-3, d / 2 - 1e-3)); g.translate(x, y, z); return g;
@@ -128,8 +131,9 @@ function archPts(halfW: number, spring: number, rise: number, n = 14): [number, 
 function extrude(pts: [number, number][], depth: number, holes: [number, number][][] = []): THREE.BufferGeometry {
   const s = new THREE.Shape(pts.map(p => new THREE.Vector2(p[0], p[1])));
   for (const h of holes) s.holes.push(new THREE.Path(h.map(p => new THREE.Vector2(p[0], p[1]))));
-  const g = new THREE.ExtrudeGeometry(s, { depth, bevelEnabled: false, curveSegments: 6 });
-  g.translate(0, 0, -depth / 2);
+  const bv = Math.min(0.025, depth * 0.3);
+  const g = new THREE.ExtrudeGeometry(s, { depth: Math.max(0.001, depth - bv * 2), bevelEnabled: bv > 0.003, bevelSize: bv, bevelThickness: bv, bevelSegments: 2, curveSegments: 8 });
+  g.translate(0, 0, -depth / 2 + bv);
   return g;
 }
 /** orientation matrix: local x along the wall, local z along the wall normal, placed at (x,z) */
@@ -303,6 +307,22 @@ export class WorldBuilder {
     return g;
   }
 
+  /** rounded plaster arrises on every convex wall corner (and door jambs) of this wall tile */
+  private bullnose(b: (k: string) => Batch, x: number, y: number, ext: boolean, top: number) {
+    const solid = (tx: number, ty: number) => this.tile(tx, ty) === T.WALL;
+    const IH = this.th.interiorH;
+    for (const [cx, cy, ox, oy] of [[x, y, -1, -1], [x + 1, y, 0, -1], [x, y + 1, -1, 0], [x + 1, y + 1, 0, 0]]) {
+      // the four tiles around grid vertex (cx, cy)
+      const q = [solid(cx - 1, cy - 1), solid(cx, cy - 1), solid(cx - 1, cy), solid(cx, cy)];
+      if (q.filter(Boolean).length !== 1) continue; // only corners where this tile juts out
+      void ox; void oy;
+      const outside = [this.tile(cx - 1, cy - 1), this.tile(cx, cy - 1), this.tile(cx - 1, cy), this.tile(cx, cy)].some(t => t === T.EXT);
+      const h = outside && ext ? top : IH;
+      const g = new THREE.CylinderGeometry(0.075, 0.075, h, 12, 1, true); g.translate(cx, h / 2, cy);
+      b(outside && ext ? "extWall" : "intWall").geo(g);
+    }
+  }
+
   private isExteriorWall(x: number, y: number) {
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) if (this.tile(x + dx, y + dy) === T.EXT) return true;
     return false;
@@ -359,6 +379,7 @@ export class WorldBuilder {
         else { face(0.14, IH, plain && style === "border" ? "trim" : wallKey); }
       }
       // cap
+      if (this.bullnose) this.bullnose(b, x, y, ext, top);
       b(ext ? "extWall" : "intWall").quad([x, top, y], [x, top, y + 1], [x + 1, top, y + 1], [x + 1, top, y], [0, 1, 0]);
       // stepped merlons on the parapet
       if (ext) {
@@ -656,7 +677,7 @@ export class WorldBuilder {
       add(new THREE.BoxGeometry(6.2, 0.25, 2.1), new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.8 }), 0, 0.72, 0);
       g.position.set(x, 0, z); g.rotation.y = ry; root.add(g);
     };
-    truck(cx - 38, -12.6, 0, 0x2f5f94); truck(cx - 46, -12.6, 0, 0xb8302a); truck(cx + 30, -6.2, Math.PI, 0xe8e2d4);
+    void truck;
     const drum = new THREE.CylinderGeometry(0.3, 0.3, 0.88, 18);
     const drumMats = [0x2f5f94, 0x3d6b3a, 0x9a3a24, 0x6a6a64].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.55, metalness: 0.4 }));
     for (const [x, z, k] of [[-1.4, -1.8, 0], [-2.0, -2.3, 1], [-1.3, -2.6, 2], [L.w + 1.6, -1.9, 3], [L.w + 2.2, -2.5, 0], [-1.5, L.h + 1.8, 1], [-2.1, L.h + 1.4, 2]] as [number, number, number][]) { const d = new THREE.Mesh(drum, drumMats[k]); d.position.set(x, 0.44, z); d.rotation.y = x * 3; d.castShadow = true; root.add(d); }

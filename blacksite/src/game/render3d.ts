@@ -132,7 +132,8 @@ const GradeShader = {
       vec3 c = texture2D(tDiffuse, vUv).rgb;
       float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
       c = mix(vec3(l), c, 1.14);                                   // saturation
-      c = c + (c - 0.5) * 0.08 * (1.0 - abs(c - 0.5) * 2.0);        // soft contrast
+      c = c + (c - 0.5) * 0.16 * (1.0 - abs(c - 0.5) * 2.0);        // S-curve contrast
+      c += vec3(0.035, 0.018, 0.0) * (1.0 - smoothstep(0.0, 0.45, l)); // warm lifted shadows
       c *= mix(vec3(0.96, 0.99, 1.05), vec3(1.07, 1.0, 0.9), smoothstep(0.15, 0.85, l) * uWarm); // split tone: cool shade, amber light
       vec2 d = vUv - 0.5; c *= 1.0 - dot(d, d) * 0.55;             // vignette
       gl_FragColor = vec4(clamp(c, 0.0, 1.0), 1.0);
@@ -259,7 +260,7 @@ export class FPRenderer {
     comp.addPass(new RenderPass(this.scene, this.camera));
     const gtao = new GTAOPass(this.scene, this.camera, w, h);
     gtao.output = GTAOPass.OUTPUT.Default;
-    gtao.blendIntensity = 1.0;
+    gtao.blendIntensity = 0.6;
     gtao.updateGtaoMaterial({ radius: 2.2, distanceExponent: 1.0, thickness: 5.0, scale: 3.4, samples: 16, distanceFallOff: 1.0 });
     gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 2, samples: 12 });
     comp.addPass(gtao); this.gtao = gtao;

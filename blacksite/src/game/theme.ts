@@ -23,7 +23,7 @@ export const THEMES: Record<FacilityId, Theme> = {
     id: "kestrel", label: "Desert border post", style: "border",
     sun: { elevation: 25, azimuth: 248, color: 0xffd6a2, intensity: 4.1 },
     sky: { turbidity: 2.4, rayleigh: 1.5, mie: 0.004, mieG: 0.82 },
-    hemi: { sky: 0xa8c4ea, ground: 0xc98f58, intensity: 0.95 },
+    hemi: { sky: 0xc8d4e4, ground: 0xe0a060, intensity: 1.35 },
     exposure: 0.55,
     fog: { color: 0xdcc09a, near: 220, far: 1900 },
     interiorH: 3.3, exteriorH: 6.4,

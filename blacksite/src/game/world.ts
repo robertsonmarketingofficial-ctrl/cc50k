@@ -22,8 +22,8 @@ export const DEFAULT_SETTINGS: Settings = { master: 0.8, sfx: 0.9, ambience: 0.7
 export function newSave(): SaveGame {
   const s: SaveGame = {
     version: 2, createdAt: Date.now(), credits: 400, rep: 0, incident: 487, runs: 0,
-    owned: ["p226", "mp5", "noisemaker", "breach"],
-    loadout: { primary: "mp5", secondary: "p226", gadgets: ["breach", "noisemaker"], armor: false, pack: false },
+    owned: ["p226", "mp5", "m4a1", "noisemaker", "breach"],
+    loadout: { primary: "m4a1", secondary: "p226", gadgets: ["breach", "noisemaker"], armor: false, pack: false },
     facilities: { halvorsen: defaultMemory("halvorsen"), meridian: defaultMemory("meridian"), kestrel: defaultMemory("kestrel"), blacksite: defaultMemory("blacksite") },
     story: [], contracts: [], reports: [], news: [], stash: [], inMission: null, settings: { ...DEFAULT_SETTINGS }, seenTutorial: false,
   };
